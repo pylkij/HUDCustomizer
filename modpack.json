@@ -1,0 +1,45 @@
+{
+  "manifestVersion": 2,
+  "name": "HUDCustomizer",
+  "version": "1.0.0",
+  "author": "Pylkij",
+  "description": "Full custom tactical HUD customization for MENACE\r\nv0.1.0 - Custom HUD colours for Units.\r\nv0.1.1 - Font support added. \r\nv0.2.0 - Hot-loading feature now works(like really this time). Default key is F8\r\nv0.3.0 - Added USS and Faction Health Bars support. \r\n- Bug fixing\r\n- Move all scans to Scans.cs - added EnableScans gate\r\n- Massive documentation effort. Should streamline all future development.\r\nv0.4.0 - Aim and movement visualizers added. Aim visualizer is still semi-WIP pending further investigation.\r\n- HUD Greying fully fixed with hot-reload\r\nv0.5.0 - Config merge added, allowing user settings to be preserved if the config is incomplete. Malformed will preserve the users config and instead log the lines where the syntax error has occured.\r\n- added backup path UserData/... so config files are preserved between MMK reloads.\r\n- fixed .json parser bug that was overwriting some file settings\r\n- dropdown text settings found and enabled.\r\nv0.6.0 - Integrated FloatingCombatText plugin\r\n- update all documentation to reflect current mod state.\r\n- moved non-user documentation to /docs/\r\n- added /dev/ directory for useful dev scripts and other plugins",
+  "createdDate": "2026-03-16T13:00:25.1153314-07:00",
+  "modifiedDate": "2026-03-22T11:54:28.7582207-07:00",
+  "loadOrder": 100,
+  "dependencies": [],
+  "code": {
+    "sources": [
+      "src/HUDCustomizer.cs",
+      "src/UnitCustomizer.cs",
+      "src/FontCustomizer.cs",
+      "src/TileCustomizer.cs",
+      "src/USSCustomizer.cs",
+      "src/VisualizerCustomizer.cs",
+      "src/CombatFlyoverPlugin.cs",
+      "src/CombatFlyoverCustomizer.cs",
+      "src/Scans.cs",
+      "src/HUDConfig.cs"
+    ],
+    "references": [
+      "MelonLoader",
+      "HarmonyLib",
+      "Menace.ModpackLoader",
+      "Menace.SDK",
+      "Menace.SDK.MissionTemplates"
+    ],
+    "prebuiltDlls": [],
+    "hasAnySources": true,
+    "hasAnyPrebuilt": false,
+    "hasAnyCode": true
+  },
+  "patches": {},
+  "bundles": [],
+  "assets": {},
+  "securityStatus": "SourceVerified",
+  "repositoryType": "None",
+  "hasCode": true,
+  "hasPatches": false,
+  "hasBundles": false,
+  "hasAssets": false
+}
