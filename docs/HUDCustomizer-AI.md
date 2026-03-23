@@ -34,6 +34,7 @@ If your work touches the CombatFlyoverText integration (`CombatFlyoverCustomizer
 - MovementVisualizer colours (ReachableColor, UnreachableColor): implemented
 - TargetAimVisualizer colours (_UnlitColor, _EmissiveColor) and float
 parameters: implemented
+- LineOfSightVisualizer line colour (LineColor): implemented — `Il2CppShapes.Line` components via indexed child traversal, `ColorStart`/`ColorEnd`, re-applied on every `Resize(int)` via `LOSResizePatch`. Config slot: `Visualizers.LineOfSight.LineColor`. Verified in log.
 - Spent unit HUD opacity (`SpentUnitHUDOpacity`): implemented via `Patch_UnitHUD_SetOpacity`
 
 ### What is incomplete — actionable now
@@ -92,13 +93,14 @@ These cannot be fully implemented without running the game with `EnableScans: tr
 **DropdownText — confirmed, implemented**
 Element structure confirmed by scan: `Container > Icon + Label`. `Label` is the text element (fontSize=14, USS class `font-headline`). Hook point: `Init(String _text, Sprite _icon)` — fires once on creation with text already set. Implemented as `Patch_DropdownText_Init` in `HUDCustomizer.cs`, config key `DropdownText` in `HUDCustomizerConfig`. Covers all flyover text shown above units (AP changes, suppression, skill effects such as Taking Command).
 
-**LineOfSightVisualizer — confirmed not implementable**
-Scan confirmed: each 'LineOfSightLine(Clone)' child has three components that
-resolve only to the base Il2Cpp 'Component' type -- no named Shapes bindings
-are generated in this build.  No MeshRenderer children exist (Shapes uses
-CommandBuffer rendering).  There is no accessible interop surface for colour
-overrides.  The scan infrastructure has been removed.  Do not attempt to
-re-implement without a future Il2Cpp build that generates Shapes bindings.
+**LineOfSightVisualizer — implemented**
+Renderer type: `Il2CppShapes.Line` from `Il2CppShapesRuntime.dll` (namespace `Il2CppShapes`, class `Line`). The original scan finding ("no named Shapes bindings") was incorrect — the DLL is present and bindings are generated. An intermediate finding that the components were `UnityEngine.LineRenderer` was also incorrect and retracted.
+
+Pool structure: `List<Line[]> m_Lines`, 3 `Line` entries per group (fade-in, solid, fade-out). Colour is written only in `Resize(int)` via `ColorStart`/`ColorEnd` — never in `Update()` or `SetVisible()`. `GetComponentsInChildren<T>` throws a fatal Il2CppInterop type-initialiser exception for `Il2CppShapes.Line` — use indexed `GetChild(i).GetComponent<Il2CppShapes.Line>()` traversal only.
+
+Fade pattern per group (i % 3): index 0 = fade-in (`ColorStart` alpha=0, `ColorEnd` alpha=A), index 1 = solid (both alpha=A), index 2 = fade-out (`ColorStart` alpha=A, `ColorEnd` alpha=0).
+
+Implementation: `LOSResizePatch` postfixes `Resize(int)` (private — requires `AccessTools.Method`). `VisualizerCustomizer.ApplyLineOfSightColor` applies the fade pattern. `TryApplyLineOfSight` handles `TacticalReady` and hot-reload. `LogLineOfSightSummary` writes a summary line. Config: `Visualizers.LineOfSight.LineColor` (`TileHighlightEntry`). Do not write `ColorMode` — it is inherited from the prefab.
 
 ---
 
@@ -118,6 +120,7 @@ TileCustomizer.LogSummary();
 USSCustomizer.LogSummary();
 UnitCustomizer.LogFactionHealthBarSummary();
 VisualizerCustomizer.LogSummary();
+VisualizerCustomizer.LogLineOfSightSummary();
 HUDCustomizerPlugin.LogSpentOpacitySummary();
 // insert YourCustomiser.LogSummary() here
 ```
@@ -181,7 +184,7 @@ Check the scan log output in `CONTRIBUTOR_README.md` Section 3 for confirmed nam
 
 ## Runtime behaviour to know
 
-- Hot-reload fires `LoadConfig()` → `FontCustomizer.InvalidateCache()` → `ReapplyToLiveElements()` → `TileCustomizer.TryApply()` → `USSCustomizer.TryApply()` → `UnitCustomizer.ApplyFactionHealthBarColors()`. Any new system that needs hot-reload support must be called in this sequence.
+- Hot-reload fires `LoadConfig()` → `FontCustomizer.InvalidateCache()` → `ReapplyToLiveElements()` → `TileCustomizer.TryApply()` → `USSCustomizer.TryApply()` → `UnitCustomizer.ApplyFactionHealthBarColors()` → `VisualizerCustomizer.TryApply()` → `VisualizerCustomizer.TryApplyLineOfSight(Config)`. Any new system that needs hot-reload support must be called in this sequence.
 - `TileHighlighter.Exists()` returns false outside tactical scenes. `TileCustomizer.TryApply()` checks this and returns early silently if the singleton is unavailable. `USSCustomizer.TryApply()` and `UnitCustomizer.ApplyFactionHealthBarColors()` check `UIConfig.Get() != null` independently — UIConfig availability is not tied to TileHighlighter. Each `TryApply()` method guards its own singleton; none of them assume the others are available.
 - Elements are registered in `_registry` keyed by native pointer (`el.Pointer`). Entries with `Pointer == IntPtr.Zero` are destroyed native objects and are pruned during `ReapplyToLiveElements()`. Do not hold references to `Il2CppInterfaceElement` objects outside the registry.
 - `DebugLogging: true` in the config enables per-element `[DBG]` log lines via `HUDCustomizerPlugin.Debug(...)`. Always wrap verbose output in `Debug()` rather than `Log.Msg()`.

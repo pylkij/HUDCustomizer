@@ -261,7 +261,15 @@ Controls the animated arc drawn from your unit to a target when selecting a skil
 
 #### Line of sight (`LineOfSightVisualizer`)
 
-Not currently supported. The lines are rendered by the Shapes library using a rendering path that is not accessible from the mod layer in this version of the game.
+Controls the colour of the line-of-sight rays drawn from your units during targeting.
+
+| Slot | What it colours |
+|---|---|
+| `LineColor` | All LOS line segments |
+
+Each LOS ray is rendered as three segments — a fade-in at the start, a solid middle section, and a fade-out at the end. The `LineColor` setting controls the RGB and peak opacity of all three; the fade at each end is applied automatically to match the game's visual style.
+
+> **Tip:** The LOS lines are brief and subtle at default white. Setting a bright or saturated colour makes them much easier to read at a glance.
 
 ### Combat flyover text
 
