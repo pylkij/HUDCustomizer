@@ -24,6 +24,7 @@ using Il2CppWorldSpaceIcon          = Il2CppMenace.UI.Tactical.WorldSpaceIcon;
 using Il2CppInterfaceElement        = Il2CppMenace.UI.InterfaceElement;
 using Il2CppMovementVisualizer    = Il2CppMenace.Tactical.MovementVisualizer;
 using Il2CppTargetAimVisualizer   = Il2CppMenace.Tactical.TargetAimVisualizer;
+using Il2CppLineOfSightVisualizer = Il2CppMenace.Tactical.LineOfSightVisualizer;
 using Il2CppDropdownText          = Il2CppMenace.UI.Tactical.DropdownText;
 
 // =============================================================================
@@ -141,6 +142,7 @@ public partial class HUDCustomizerPlugin : IModpackPlugin
         USSCustomizer.TryApply();
         UnitCustomizer.ApplyFactionHealthBarColors();
         VisualizerCustomizer.TryApply();
+        VisualizerCustomizer.TryApplyLineOfSight(Config);
         Scans.RunUIConfigScan();
     }
 
@@ -157,6 +159,7 @@ public partial class HUDCustomizerPlugin : IModpackPlugin
             USSCustomizer.TryApply();
             UnitCustomizer.ApplyFactionHealthBarColors();
             VisualizerCustomizer.TryApply();
+            VisualizerCustomizer.TryApplyLineOfSight(Config);
             CombatFlyoverCustomizer.Apply(Config.CombatFlyover);
         }
     }
@@ -206,6 +209,7 @@ public partial class HUDCustomizerPlugin : IModpackPlugin
             USSCustomizer.LogSummary();
             UnitCustomizer.LogFactionHealthBarSummary();
             VisualizerCustomizer.LogSummary();
+            VisualizerCustomizer.LogLineOfSightSummary();
             LogSpentOpacitySummary();
             CombatFlyoverCustomizer.Apply(Config.CombatFlyover);
             CombatFlyoverCustomizer.LogSummary();
@@ -567,6 +571,7 @@ public partial class HUDCustomizerPlugin
         harmony.PatchAll(typeof(Patch_WorldSpaceIcon_Update_Scan));
         harmony.PatchAll(typeof(Patch_MovementVisualizer_ShowPath));
         harmony.PatchAll(typeof(Patch_TargetAimVisualizer_UpdateAim));
+        harmony.PatchAll(typeof(LOSResizePatch));
         harmony.PatchAll(typeof(Patch_DropdownText_Init));
         Debug("Harmony patches registered.");
     }
@@ -779,6 +784,30 @@ public partial class HUDCustomizerPlugin
             {
                 Log.Error($"[HUDCustomizer] Patch_TargetAimVisualizer_UpdateAim: {ex}");
             }
+        }
+    }
+
+    // LineOfSightVisualizer -- Resize(int _n) allocates/re-colours the Shapes Line
+    // pool.  We postfix here to re-apply our configured colour immediately after
+    // each resize so it survives pool expansion and colour resets.
+    [HarmonyPatch]
+    private static class LOSResizePatch
+    {
+        static MethodBase TargetMethod() =>
+            AccessTools.Method(
+                typeof(Il2CppLineOfSightVisualizer),
+                "Resize",
+                new[] { typeof(int) });
+
+        [HarmonyPostfix]
+        private static void Postfix(Il2CppLineOfSightVisualizer __instance)
+        {
+            try
+            {
+                if (!HUDCustomizerPlugin.Config.Visualizers.LineOfSight.LineColor.Enabled) return;
+                VisualizerCustomizer.ApplyLineOfSightColor(__instance, VisualizerCustomizer._currentLOSColor);
+            }
+            catch (Exception ex) { Log.Error($"[LOSResizePatch] {ex}"); }
         }
     }
 

@@ -55,7 +55,6 @@ public static class VisualizerCustomizer
     {
         ApplyMovementVisualizers();
         ApplyTargetAimVisualizers();
-        // LineOfSightVisualizer: no colour fields confirmed yet -- scan only.
     }
 
     // -------------------------------------------------------------------------
@@ -289,6 +288,109 @@ public static class VisualizerCustomizer
     }
 
     // =========================================================================
+    // LineOfSightVisualizer
+    // =========================================================================
+
+    // Holds the last colour applied to LOS lines.
+    // Written by TryApplyLineOfSight; read by LOSResizePatch in HUDCustomizer.cs.
+    public static Color _currentLOSColor = Color.white;
+
+    // Applies the given colour to every Il2CppShapes.Line child of the instance.
+    // Children are grouped in sets of 3 (fade-in, solid, fade-out) identified by
+    // (childIndex % 3).  Called from TryApplyLineOfSight and from LOSResizePatch
+    // after every Resize() so the colour survives pool re-use.
+    public static void ApplyLineOfSightColor(
+        Il2CppLineOfSightVisualizer instance, Color color)
+    {
+        int childCount = instance.transform.childCount;
+        for (int i = 0; i < childCount; i++)
+        {
+            var child = instance.transform.GetChild(i);
+            if (child == null) continue;
+
+            var line = child.gameObject.GetComponent<Il2CppShapes.Line>();
+            if (line == null) continue;
+
+            float r = color.r;
+            float g = color.g;
+            float b = color.b;
+            float a = color.a;
+
+            int posInGroup = i % 3;
+            switch (posInGroup)
+            {
+                case 0: // fade-in: transparent -> opaque
+                    line.ColorStart = new Color(r, g, b, 0f);
+                    line.ColorEnd   = new Color(r, g, b, a);
+                    break;
+                case 1: // solid
+                    line.ColorStart = new Color(r, g, b, a);
+                    line.ColorEnd   = new Color(r, g, b, a);
+                    break;
+                case 2: // fade-out: opaque -> transparent
+                    line.ColorStart = new Color(r, g, b, a);
+                    line.ColorEnd   = new Color(r, g, b, 0f);
+                    break;
+            }
+        }
+    }
+
+    // Finds all live LineOfSightVisualizer instances and applies the configured
+    // line colour to each one.  Called from OnTacticalReady and hot-reload.
+    public static void TryApplyLineOfSight(HUDCustomizerConfig cfg)
+    {
+        if (!cfg.Visualizers.LineOfSight.LineColor.Enabled) return;
+
+        _currentLOSColor = HUDCustomizerPlugin.ToColor(
+            cfg.Visualizers.LineOfSight.LineColor, "LineOfSight.LineColor");
+
+        try
+        {
+            var instances = UnityEngine.Object.FindObjectsOfType<Il2CppLineOfSightVisualizer>();
+            if (instances == null || instances.Length == 0)
+            {
+                HUDCustomizerPlugin.Debug(
+                    "[VisualizerCustomizer] No LineOfSightVisualizer instances found.");
+                return;
+            }
+
+            for (int i = 0; i < instances.Length; i++)
+            {
+                if (instances[i] == null) continue;
+                try
+                {
+                    ApplyLineOfSightColor(instances[i], _currentLOSColor);
+                }
+                catch (Exception ex)
+                {
+                    HUDCustomizerPlugin.Log.Warning(
+                        $"[VisualizerCustomizer] LineOfSightVisualizer instance apply failed: {ex.Message}");
+                }
+            }
+
+            HUDCustomizerPlugin.Debug(
+                $"[VisualizerCustomizer] LineOfSightVisualizer applied to {instances.Length} instance(s).");
+        }
+        catch (Exception ex)
+        {
+            HUDCustomizerPlugin.Log.Warning(
+                $"[VisualizerCustomizer] TryApplyLineOfSight failed: {ex.Message}");
+        }
+    }
+
+    // Logs a summary line for the LineOfSight config block (called from LoadConfig).
+    public static void LogLineOfSightSummary()
+    {
+        var e = HUDCustomizerPlugin.Config.Visualizers.LineOfSight.LineColor;
+        if (e.Enabled)
+            HUDCustomizerPlugin.Log.Msg(
+                $"  [LineOfSight] LineColor=RGB({(int)e.R},{(int)e.G},{(int)e.B}) A({e.A:F2})");
+        else
+            HUDCustomizerPlugin.Log.Msg(
+                "  [LineOfSight] LineColor: disabled (game default preserved)");
+    }
+
+    // =========================================================================
     // Re-apply after UpdateAim (called from patch in HUDCustomizer.cs)
     // UpdateAim creates/updates the mesh and may reset renderer state.  We
     // re-apply the material colour after each call so it survives mesh rebuilds.
@@ -350,9 +452,5 @@ public static class VisualizerCustomizer
         else
             HUDCustomizerPlugin.Log.Msg(
                 $"  [Visualizers] Overrides active ({active.Count}): {string.Join("  ", active)}");
-
-        HUDCustomizerPlugin.Log.Msg(
-            "  [Visualizers] LineOfSightVisualizer: not supported -- Shapes Line components " +
-            "are inaccessible via Il2CppInterop in this build (no named bindings generated).");
     }
 }

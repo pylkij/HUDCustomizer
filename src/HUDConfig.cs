@@ -326,17 +326,28 @@ public class TargetAimVisualizerConfig
 }
 
 // ---------------------------------------------------------------------------
+// LineOfSightVisualizerConfig
+// Colour overrides for the LOS lines drawn during the LineOfSightVisualizer.
+// Each visible LOS line is composed of 3 Il2CppShapes.Line segments:
+//   [0] fade-in  -- ColorStart=(R,G,B,0) ColorEnd=(R,G,B,A)
+//   [1] solid    -- ColorStart=(R,G,B,A) ColorEnd=(R,G,B,A)
+//   [2] fade-out -- ColorStart=(R,G,B,A) ColorEnd=(R,G,B,0)
+// Colour is applied (and re-applied after every Resize) via LOSResizePatch.
+// ---------------------------------------------------------------------------
+public class LineOfSightVisualizerConfig
+{
+    public TileHighlightEntry LineColor { get; set; } = new();
+}
+
+// ---------------------------------------------------------------------------
 // VisualizersConfig
 // Top-level wrapper for all visualizer sub-configs.
-// LineOfSightVisualizer is not represented here yet -- its internal Line[]
-// colour fields are not directly accessible from the component.  A scan
-// patch fires at Start() to confirm whether they can be reached via
-// reflection; config will be added once the approach is confirmed.
 // ---------------------------------------------------------------------------
 public class VisualizersConfig
 {
-    public MovementVisualizerConfig  MovementVisualizer  { get; set; } = new();
-    public TargetAimVisualizerConfig TargetAimVisualizer { get; set; } = new();
+    public MovementVisualizerConfig      MovementVisualizer  { get; set; } = new();
+    public TargetAimVisualizerConfig     TargetAimVisualizer { get; set; } = new();
+    public LineOfSightVisualizerConfig   LineOfSight         { get; set; } = new();
 }
 
 // ---------------------------------------------------------------------------
@@ -619,10 +630,10 @@ public static class HUDConfig
    //   MinimumHeight         -- minimum arc height above terrain (-1 = unchanged)
    //   MaximumHeight         -- maximum arc height above terrain (-1 = unchanged)
    //   DistanceToHeightScale -- arc height scale with distance (-1 = unchanged)
-   // LineOfSightVisualizer: pending scan confirmation.
-   //   Colour fields on the Shapes Line objects inside the visualizer have not yet
-   //   been confirmed accessible.  Set EnableScans = true and enter a mission to
-   //   run the LineOfSightVisualizer scan; config will be added after confirmation.
+   // LineOfSightVisualizer: colour for the LOS lines drawn during targeting.
+   //   LineColor -- applied to all Il2CppShapes.Line children via ColorStart/ColorEnd.
+   //                Each LOS line is 3 Shapes.Line segments: fade-in, solid, fade-out.
+   //                Colour is re-applied after every Resize() call via LOSResizePatch.
    ""Visualizers"": {
      ""MovementVisualizer"": {
        ""ReachableColor"":   { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 },
@@ -652,6 +663,9 @@ public static class HUDConfig
       ""MinimumHeight"":           -1.0,
       ""MaximumHeight"":           -1.0,
       ""DistanceToHeightScale"":   -1.0
+    },
+    ""LineOfSight"": {
+      ""LineColor"": { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 }
     }
    },
 
