@@ -13,17 +13,15 @@ A mod for **MENACE** that lets you change the appearance of the tactical HUD —
 
 ## Installation
 
-1. Copy the `HUDCustomizer` folder into your `Mods` directory:
-   ```
-   Menace/Mods/HUDCustomizer/
-   ```
+1. Download repository as a .ZIP and select the .ZIP via the Menace Modkit +Add Mod button. Select Deploy to Game.
+
 2. Launch the game. On first run, the mod creates the config file automatically:
    ```
    Menace/Mods/HUDCustomizer/HUDCustomizer.json
    ```
 3. Open that file in any text editor to start customising.
 
-> **Note:** Each time the config loads successfully, the mod saves a backup copy to `Menace/UserData/HUDCustomizer/HUDCustomizer.json`. If you uninstall and reinstall the mod, your settings are automatically restored from this backup on next launch.
+> **Note:** Each time the config loads successfully, the mod saves a backup copy to `Menace/UserData/HUDCustomizer/HUDCustomizer.json`. If you unload and reload the mod, your settings are automatically restored from this backup on next launch.
 
 ---
 
