@@ -22,8 +22,8 @@ Two findings from previous work were incorrect and have been fixed in `CONTRIBUT
 **Mission colour fields carry `[UssColor]`**
 `ColorMissionPlayable`, `ColorMissionLocked`, `ColorMissionPlayed`, `ColorMissionPlayedArrow`, and `ColorMissionUnplayable` were documented as non-USS direct values. The dump confirms all five carry `[UssColor]`. They should be implemented via `USSCustomizer.TryApply()` alongside the existing 23 USS fields — not via the `FactionHealthBarColors` pattern.
 
-**`LineOfSightVisualizer` is implementable**
-The original scan declared this impossible due to "Shapes library types with no Il2CppInterop bindings." Ghidra decompilation showed there is no Shapes library — the components are standard Unity `LineRenderer` instances. The scan failed because of how it resolved components, not because of missing bindings. Full implementation is viable.
+**`LineOfSightVisualizer` is implementable — and implemented**
+The original scan declared this impossible due to "Shapes library types with no Il2CppInterop bindings." Ghidra decompilation and runtime verification confirmed the components are `Il2CppShapes.Line` instances from `Il2CppShapesRuntime.dll` (namespace `Il2CppShapes`, class `Line`). An earlier intermediate finding incorrectly identified them as `UnityEngine.LineRenderer` — that was also retracted. Colour is written only in `Resize(int)` via `ColorStart`/`ColorEnd` on each `Line`. `GetComponentsInChildren<T>` throws a fatal Il2CppInterop exception for this type; indexed `GetChild(i).GetComponent<Il2CppShapes.Line>()` traversal is required. Fully implemented via `LOSResizePatch`, `ApplyLineOfSightColor`, and `TryApplyLineOfSight`. Verified in log.
 
 **`TargetAimVisualizer.OutOfRangeColor` root cause identified**
 The field write was always succeeding but having no effect because `UpdateAim()` hardcodes white into the out-of-range rendering path without reading the field. The fix is a one-line addition to the existing `Patch_TargetAimVisualizer_UpdateAim` postfix.
@@ -116,11 +116,11 @@ Delayed off-map ability progress indicator. Hybrid patching — both a UIElement
 
 Customisable: progress element fill tint (inline style), world-space marker colour (test `ColorPositionMarkerDelayedAbility` via UIConfig first before attempting direct Material patch). Hook: `SetAbility(...)` + re-apply on `SetProgressPct(float)`.
 
-### LineOfSightVisualizer
+### LineOfSightVisualizer ✅ COMPLETED
 
-Line-of-sight ray visualisation. Components confirmed as standard Unity `LineRenderer` via Ghidra.
+Line-of-sight ray visualisation. Renderer type confirmed as `Il2CppShapes.Line` (from `Il2CppShapesRuntime.dll`, namespace `Il2CppShapes`). Pool structure: `List<Line[]> m_Lines`, 3 `Line` entries per group (fade-in, solid, fade-out). Colour written only in `Resize(int)` via `ColorStart`/`ColorEnd`. `GetComponentsInChildren<T>` is fatal for this type — indexed child traversal required.
 
-Customisable: `startColor` and `endColor` on each `LineRenderer` instance. Access via `FindObjectsOfType<LineOfSightVisualizer>()`, iterate `m_Lines`, `GetComponent<LineRenderer>()` per entry. Re-apply hook: postfix on `SetVisible(bool)`.
+Implemented: `LOSResizePatch` postfixes `Resize(int)` to re-apply colour after each pool growth. `ApplyLineOfSightColor` applies the fade pattern to all children. `TryApplyLineOfSight` handles `TacticalReady` and hot-reload. `LogLineOfSightSummary` confirmed in log. Config slot: `Visualizers.LineOfSight.LineColor`.
 
 ### TargetAimVisualizer OutOfRangeColor (WIP fix)
 
@@ -141,7 +141,7 @@ Root cause confirmed. `UpdateAim()` hardcodes white for the out-of-range path wi
 | `WorldSpaceIcon` | Confirmed empty — no fields |
 | `SkillBar` | Layout container wrapper, no colour or label fields |
 | `ISkillBarElement` | Interface only |
-| `LineOfSightVisualizer` (old finding) | Overturned — see above |
+| `LineOfSightVisualizer` (old finding) | Overturned — implemented. See Corrections and New systems above. |
 
 ---
 
@@ -154,7 +154,7 @@ These are code hygiene items with no user-facing impact, but should be done befo
 | `Patch_WorldSpaceIcon_Update_Scan` | Delete entire class + `RegisterPatches()` entry + `Scans.RunWorldSpaceIconScan()` |
 | `Patch_UnitHUD_OnUpdate_Scan` | Delete entire class + `RegisterPatches()` entry |
 | `BleedingWorldSpaceIcon` element name | Run with `EnableScans: true` to confirm `"TextElement"` prediction, then replace `QueryAndSet` with `SetFont(el.Q(...))` |
-| `VisualizerCustomizer.LogSummary()` | Remove "not supported" note for `LineOfSightVisualizer` |
+| `VisualizerCustomizer.LogSummary()` | ✅ Done — "not supported" note removed. |
 | `README.md` (user-facing) | Remove "not supported" note for `LineOfSightVisualizer` |
 
 ---
@@ -195,7 +195,7 @@ Meaningful but affect less frequently visible UI elements.
 
 ### Tier 4 — Lower impact or higher complexity
 
-16. **`LineOfSightVisualizer`** — Implementable but requires iterating a `Den.Tools.Splines.Line[]` list via Il2Cpp field access, which is more involved than the standard `FindObjectsOfType` pattern. LOS lines are visible but brief.
+16. **`LineOfSightVisualizer`** ✅ — Implemented. `Il2CppShapes.Line` components, `ColorStart`/`ColorEnd`, `LOSResizePatch` on `Resize(int)`. Verified in log.
 17. **`DelayedAbilityHUD`** — Progress element tint is straightforward; world-space marker should be tested via UIConfig first. Delayed abilities are an uncommon mechanic.
 18. **`TurnOrderPanel`** — Round number font only. Minor.
 19. **`StatusEffectIcon`** — Stack count font only. Minor.
