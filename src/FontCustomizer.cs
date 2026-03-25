@@ -221,12 +221,7 @@ public static class FontCustomizer
     private static void ApplyBleedingWorldSpaceIcon(Il2CppInterfaceElement el)
     {
         var cfg = HUDCustomizerPlugin.Config;
-        // Element name derived from source file field m_TextElement -> "TextElement".
-        // UpdateAnimation runs a pulse each frame -- text colour should survive
-        // as the animation likely only modifies position/opacity, not style.color.
-        // Element name pending scan confirmation.  If settings are configured but
-        // nothing appears in-game, check the element scan log for the actual name.
-        QueryAndSet(el, "TextElement", Merge(cfg.Global, cfg.BleedingIconText), "BleedingIcon.Text");
+        SetFont(el.Q("TextElement", (string)null), Merge(cfg.Global, cfg.BleedingIconText), "BleedingIconText");
     }
 
     private static void ApplyDropdownText(Il2CppInterfaceElement el)

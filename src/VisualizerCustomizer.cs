@@ -124,10 +124,10 @@ public static class VisualizerCustomizer
         var cfg = HUDCustomizerPlugin.Config.Visualizers;
         var tv  = cfg.TargetAimVisualizer;
 
-        bool anyColor = tv.OutOfRangeColor.Enabled ||
-                        tv.InRangeColor.Enabled     ||
+        bool anyColor = tv.InRangeColor.Enabled     ||
                         tv.InRangeEmissiveColor.Enabled ||
-                        tv.EmissiveIntensity >= 0f;
+                        tv.EmissiveIntensity >= 0f ||
+                        tv.OutOfRangeColor.Enabled;
         bool anyFloat = tv.AnimationScrollSpeed >= 0f ||
                         tv.Width                >= 0f ||
                         tv.MinimumHeight        >= 0f ||
@@ -174,19 +174,13 @@ public static class VisualizerCustomizer
         Il2CppTargetAimVisualizer instance,
         TargetAimVisualizerConfig cfg)
     {
-        // Direct colour field.
-        if (cfg.OutOfRangeColor.Enabled)
-        {
-            instance.OutOfRangeColor = HUDCustomizerPlugin.ToColor(
-                cfg.OutOfRangeColor, "TargetAimVisualizer.OutOfRangeColor");
-        }
-
         // In-range colour via MaterialPropertyBlock on the MeshRenderer.
         // The MeshRenderer is a private field (m_MeshRenderer) so we reach it
         // through the GameObject's component.  The renderer lives on a child
         // GameObject (m_MeshObject), so we search all child MeshRenderers.
+        // isInRange: true -- no aim is active at apply time, default to in-range.
         if (cfg.InRangeColor.Enabled || cfg.InRangeEmissiveColor.Enabled || cfg.EmissiveIntensity >= 0f)
-            TryApplyMaterialColor(instance.gameObject, cfg);
+            TryApplyMaterialColor(instance.gameObject, cfg, isInRange: true);
 
         // Float parameters -- sentinel value -1 means "leave unchanged".
         if (cfg.AnimationScrollSpeed >= 0f)
@@ -199,9 +193,17 @@ public static class VisualizerCustomizer
             instance.MaximumHeight = cfg.MaximumHeight;
         if (cfg.DistanceToHeightScale >= 0f)
             instance.DistanceToHeightScale = cfg.DistanceToHeightScale;
+
+        // OutOfRangeColor is a native field on Il2CppTargetAimVisualizer.
+        // Written directly so the game's own range-check logic reads the correct value.
+        if (cfg.OutOfRangeColor.Enabled)
+        {
+            instance.OutOfRangeColor = HUDCustomizerPlugin.ToColor(cfg.OutOfRangeColor, "TargetAimVisualizer.OutOfRangeColor");
+            HUDCustomizerPlugin.Log.Msg($"[TargetAimViz] OutOfRangeColor written: {instance.OutOfRangeColor}");
+        }
     }
 
-    private static void TryApplyMaterialColor(GameObject root, TargetAimVisualizerConfig cfg)
+    private static void TryApplyMaterialColor(GameObject root, TargetAimVisualizerConfig cfg, bool isInRange)
     {
         try
         {
@@ -221,11 +223,27 @@ public static class VisualizerCustomizer
                 if (renderer == null) continue;
                 renderer.GetPropertyBlock(block);
 
-                if (cfg.InRangeColor.Enabled)
+                // Gate the _UnlitColor MPB write on range state.
+                // UpdateAim writes white (1,1,1,1) to material.SetColor for in-range, and
+                // OutOfRangeColor for out-of-range.  Our MPB overrides the material, so we
+                // must mirror the game's decision here rather than always stamping InRangeColor.
+                if (isInRange)
                 {
-                    var color = HUDCustomizerPlugin.ToColor(
-                        cfg.InRangeColor, "TargetAimVisualizer.InRangeColor(_UnlitColor)");
-                    block.SetColor(UnlitColorProperty, color);
+                    if (cfg.InRangeColor.Enabled)
+                    {
+                        var color = HUDCustomizerPlugin.ToColor(
+                            cfg.InRangeColor, "TargetAimVisualizer.InRangeColor(_UnlitColor)");
+                        block.SetColor(UnlitColorProperty, color);
+                    }
+                }
+                else
+                {
+                    if (cfg.OutOfRangeColor.Enabled)
+                    {
+                        var color = HUDCustomizerPlugin.ToColor(
+                            cfg.OutOfRangeColor, "TargetAimVisualizer.OutOfRangeColor(_UnlitColor)");
+                        block.SetColor(UnlitColorProperty, color);
+                    }
                 }
 
                 if (cfg.InRangeEmissiveColor.Enabled || cfg.EmissiveIntensity >= 0f)
@@ -392,20 +410,44 @@ public static class VisualizerCustomizer
 
     // =========================================================================
     // Re-apply after UpdateAim (called from patch in HUDCustomizer.cs)
-    // UpdateAim creates/updates the mesh and may reset renderer state.  We
-    // re-apply the material colour after each call so it survives mesh rebuilds.
+    // UpdateAim writes to material.SetColor (not MPB) -- our MPB overrides it.
+    // We read what the game just wrote to the material to detect range state:
+    //   in-range  -> game wrote white (1,1,1,1)
+    //   out-of-range -> game wrote OutOfRangeColor (non-white)
+    // Then we write the correct colour into the MPB to match.
     // =========================================================================
     internal static void ReapplyTargetAimVisualizerColors(Il2CppTargetAimVisualizer instance)
     {
         var cfg = HUDCustomizerPlugin.Config.Visualizers.TargetAimVisualizer;
         bool anyMaterial = cfg.InRangeColor.Enabled ||
                            cfg.InRangeEmissiveColor.Enabled ||
-                           cfg.EmissiveIntensity >= 0f;
+                           cfg.EmissiveIntensity >= 0f ||
+                           cfg.OutOfRangeColor.Enabled;
         if (!anyMaterial) return;
 
         try
         {
-            TryApplyMaterialColor(instance.gameObject, cfg);
+            // Detect range state by reading what UpdateAim just wrote to the material.
+            // The game calls renderer.GetMaterial().SetColor(...) directly (confirmed via
+            // Ghidra: FUN_182978b10 = Renderer.GetMaterial, FUN_18296ac80 = Material.SetColor).
+            // In-range: game writes white (0x3f800000 = 1.0f on all channels).
+            // Out-of-range: game writes OutOfRangeColor from field offset 0x30.
+            bool isInRange = true;
+            var renderers = instance.gameObject.GetComponentsInChildren<MeshRenderer>();
+            if (renderers != null && renderers.Length > 0)
+            {
+                for (int i = 0; i < renderers.Length; i++)
+                {
+                    var r = renderers[i];
+                    if (r == null || r.material == null) continue;
+                    var gameColor = r.material.GetColor(UnlitColorProperty);
+                    // White threshold: all channels > 0.99 means the game chose in-range.
+                    isInRange = (gameColor.r > 0.99f && gameColor.g > 0.99f && gameColor.b > 0.99f);
+                    break; // all renderers share the same material state; first non-null is sufficient
+                }
+            }
+
+            TryApplyMaterialColor(instance.gameObject, cfg, isInRange);
         }
         catch (Exception ex)
         {

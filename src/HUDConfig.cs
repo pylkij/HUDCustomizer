@@ -83,6 +83,7 @@ public class HUDCustomizerConfig
     // shown above units in the tactical scene -- use HitpointsFillColor /
     // HitpointsPreviewColor above for those.
     public FactionHealthBarColorsConfig FactionHealthBarColors { get; set; } = new();
+    public RarityColorsConfig RarityColors { get; set; } = new();
 
     // Font settings -----------------------------------------------------------
     // Each FontSettings entry has a Font name and a Size (0 = unchanged).
@@ -241,6 +242,12 @@ public class USSColorsConfig
     public TileHighlightEntry ColorProgressBarBright   { get; set; } = new();
     // Misc
     public TileHighlightEntry ColorEmptySlotIcon       { get; set; } = new();
+    // Mission state colours
+    public TileHighlightEntry ColorMissionPlayable     { get; set; } = new() { R = 168f, G = 152f, B = 103f, A = 1f };
+    public TileHighlightEntry ColorMissionLocked       { get; set; } = new() { R = 168f, G = 152f, B = 103f, A = 1f };
+    public TileHighlightEntry ColorMissionPlayed       { get; set; } = new() { R = 113f, G = 102f, B = 69f,  A = 1f };
+    public TileHighlightEntry ColorMissionPlayedArrow  { get; set; } = new() { R = 75f,  G = 67f,  B = 44f,  A = 0.5f };
+    public TileHighlightEntry ColorMissionUnplayable   { get; set; } = new() { R = 115f, G = 115f, B = 115f, A = 1f };
 }
 
 // Faction-specific health bar colour overrides.
@@ -263,6 +270,22 @@ public class FactionHealthBarColorsConfig
     // Section colours (armor bar segmentation)
     public TileHighlightEntry HealthBarSectionColorPlayerUnits { get; set; } = new();
     public TileHighlightEntry HealthBarSectionColorEnemies     { get; set; } = new();
+}
+
+// Rarity colour overrides.
+// Each slot maps directly to a public Color field on UIConfig.
+// Set Enabled = true and adjust R/G/B/A to override that slot.
+public class RarityColorsConfig
+{
+    public TileHighlightEntry Common        { get; set; } = new() { R = 116f, G = 108f, B = 75f,  A = 1f };
+    public TileHighlightEntry CommonNamed   { get; set; } = new() { R = 216f, G = 232f, B = 203f, A = 1f };
+    public TileHighlightEntry Uncommon      { get; set; } = new() { R = 61f,  G = 117f, B = 136f, A = 1f };
+    public TileHighlightEntry UncommonNamed { get; set; } = new() { R = 185f, G = 208f, B = 214f, A = 1f };
+    public TileHighlightEntry Rare          { get; set; } = new() { R = 189f, G = 49f,  B = 49f,  A = 1f };
+    public TileHighlightEntry RareNamed     { get; set; } = new() { R = 252f, G = 241f, B = 240f, A = 1f };
+
+    // Misc UIConfig colour
+    public TileHighlightEntry ColorPositionMarkerDelayedAbility { get; set; } = new() { R = 0f, G = 255f, B = 255f, A = 1f };
 }
 
 // ---------------------------------------------------------------------------
@@ -490,6 +513,20 @@ public static class HUDConfig
     ""HealthBarSectionColorEnemies"":     { ""Enabled"": false, ""R"": 172, ""G"":  44, ""B"":  45, ""A"": 1.0 }   // default: RGB(172, 44, 45)
   },
 
+  // --- Rarity colours -------------------------------------------------------
+  // These map to public Color fields on UIConfig (confirmed in UIConfig.cs).
+  // R/G/B: 0-255 integers. A: 0.0-1.0 float.
+  ""RarityColors"": {
+    ""Common"":        { ""Enabled"": false, ""R"": 116, ""G"": 108, ""B"": 75,  ""A"": 1.0 },  // default: RGB(116, 108, 75)
+    ""CommonNamed"":   { ""Enabled"": false, ""R"": 216, ""G"": 232, ""B"": 203, ""A"": 1.0 },  // default: RGB(216, 232, 203)
+    ""Uncommon"":      { ""Enabled"": false, ""R"": 61,  ""G"": 117, ""B"": 136, ""A"": 1.0 },  // default: RGB(61, 117, 136)
+    ""UncommonNamed"": { ""Enabled"": false, ""R"": 185, ""G"": 208, ""B"": 214, ""A"": 1.0 },  // default: RGB(185, 208, 214)
+    ""Rare"":          { ""Enabled"": false, ""R"": 189, ""G"": 49,  ""B"": 49,  ""A"": 1.0 },  // default: RGB(189, 49, 49)
+    ""RareNamed"":     { ""Enabled"": false, ""R"": 252, ""G"": 241, ""B"": 240, ""A"": 1.0 },  // default: RGB(252, 241, 240)
+    // Misc UIConfig colour
+    ""ColorPositionMarkerDelayedAbility"": { ""Enabled"": false, ""R"": 0, ""G"": 255, ""B"": 255, ""A"": 1.0 }  // default: unknown (cyan placeholder)
+  },
+
   // --- Font -----------------------------------------------------------------
   // Each section has ""Font"" (asset name, """" = unchanged) and ""Size"" (float, 0 = unchanged).
   // Global is applied first; per-element entries override it where set.
@@ -614,6 +651,12 @@ public static class HUDConfig
         ""ColorProgressBarBright"": { ""Enabled"": false, ""R"": 232, ""G"": 205, ""B"": 124, ""A"": 1.0 },  // default: RGB(232, 205, 124) A(1.00)
     // Misc
         ""ColorEmptySlotIcon"": { ""Enabled"": false, ""R"": 65, ""G"": 86, ""B"": 90, ""A"": 1.0 },  // default: RGB(65, 86, 90) A(1.00)
+    // Mission state colours
+        ""ColorMissionPlayable"":    { ""Enabled"": false, ""R"": 168, ""G"": 152, ""B"": 103, ""A"": 1.0 },
+        ""ColorMissionLocked"":      { ""Enabled"": false, ""R"": 168, ""G"": 152, ""B"": 103, ""A"": 1.0 },
+        ""ColorMissionPlayed"":      { ""Enabled"": false, ""R"": 113, ""G"": 102, ""B"": 69,  ""A"": 1.0 },
+        ""ColorMissionPlayedArrow"": { ""Enabled"": false, ""R"": 75,  ""G"": 67,  ""B"": 44,  ""A"": 0.5 },
+        ""ColorMissionUnplayable"":  { ""Enabled"": false, ""R"": 115, ""G"": 115, ""B"": 115, ""A"": 1.0 }
   },
 
    // --- Visualizer colours and parameters ------------------------------------

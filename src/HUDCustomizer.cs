@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Reflection;
+using System.Collections;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Collections.Generic;
@@ -131,6 +132,16 @@ public partial class HUDCustomizerPlugin : IModpackPlugin
     public void OnSceneLoaded(int buildIndex, string sceneName)
     {
         Debug($"OnSceneLoaded: '{sceneName}' (index {buildIndex})");
+
+        if (sceneName == "Strategy")
+            MelonCoroutines.Start(ApplyUSSAfterDelay(0.5f));
+    }
+
+    private static IEnumerator ApplyUSSAfterDelay(float seconds)
+    {
+        yield return new WaitForSeconds(seconds);
+        Debug("[HUDCustomizer] Strategy scene delay elapsed -- applying USS colours.");
+        USSCustomizer.TryApply();
     }
 
     // GameState event ---------------------------------------------------------
@@ -141,9 +152,10 @@ public partial class HUDCustomizerPlugin : IModpackPlugin
         TileCustomizer.TryApply();
         USSCustomizer.TryApply();
         UnitCustomizer.ApplyFactionHealthBarColors();
+        UnitCustomizer.ApplyRarityColors();
         VisualizerCustomizer.TryApply();
         VisualizerCustomizer.TryApplyLineOfSight(Config);
-        Scans.RunUIConfigScan();
+        Scans.RunUIConfigScan();  // fires after TryApply() -- UIConfig.Get() is warm by this point
     }
 
     // Per-frame ---------------------------------------------------------------
@@ -158,6 +170,7 @@ public partial class HUDCustomizerPlugin : IModpackPlugin
             TileCustomizer.TryApply();
             USSCustomizer.TryApply();
             UnitCustomizer.ApplyFactionHealthBarColors();
+            UnitCustomizer.ApplyRarityColors();
             VisualizerCustomizer.TryApply();
             VisualizerCustomizer.TryApplyLineOfSight(Config);
             CombatFlyoverCustomizer.Apply(Config.CombatFlyover);
@@ -208,6 +221,7 @@ public partial class HUDCustomizerPlugin : IModpackPlugin
             TileCustomizer.LogSummary();
             USSCustomizer.LogSummary();
             UnitCustomizer.LogFactionHealthBarSummary();
+            UnitCustomizer.LogRarityColorSummary();
             VisualizerCustomizer.LogSummary();
             VisualizerCustomizer.LogLineOfSightSummary();
             LogSpentOpacitySummary();
@@ -568,7 +582,6 @@ public partial class HUDCustomizerPlugin
         harmony.PatchAll(typeof(Patch_UnitHUD_SetOpacity));
         harmony.PatchAll(typeof(Patch_MovementHUD_SetDestination));
         harmony.PatchAll(typeof(Patch_BleedingWorldSpaceIcon_SetText));
-        harmony.PatchAll(typeof(Patch_WorldSpaceIcon_Update_Scan));
         harmony.PatchAll(typeof(Patch_MovementVisualizer_ShowPath));
         harmony.PatchAll(typeof(Patch_TargetAimVisualizer_UpdateAim));
         harmony.PatchAll(typeof(LOSResizePatch));
@@ -819,7 +832,6 @@ public partial class HUDCustomizerPlugin
     [HarmonyPatch(typeof(Il2CppBleedingWorldSpaceIcon), nameof(Il2CppBleedingWorldSpaceIcon.SetText))]
     private static class Patch_BleedingWorldSpaceIcon_SetText
     {
-        private static bool _scanned = false;
         private static void Postfix(Il2CppBleedingWorldSpaceIcon __instance)
         {
             try
@@ -827,7 +839,6 @@ public partial class HUDCustomizerPlugin
                 var el = __instance.Cast<Il2CppInterfaceElement>();
                 FontCustomizer.Apply(el, "BleedingWorldSpaceIcon");
                 Register(el, "BleedingWorldSpaceIcon");
-                if (!_scanned) { _scanned = true; Scans.RunElementScan(el, "BleedingWorldSpaceIcon"); }
             }
             catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_BleedingWorldSpaceIcon_SetText: {ex}"); }
         }
@@ -851,28 +862,6 @@ public partial class HUDCustomizerPlugin
                 if (!_scanned) { _scanned = true; Scans.RunElementScan(el, "DropdownText"); }
             }
             catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_DropdownText_Init: {ex}"); }
-        }
-    }
-
-    // WorldSpaceIcon.Update -- base class Update at Slot 142 (confirmed in WorldSpaceIcon.cs).
-    // SimpleWorldSpaceIcon does NOT override Update so this catches it.
-    // BleedingWorldSpaceIcon DOES override Update (Slot 142) so it is excluded by type check.
-    // Fires once per concrete type for element scan.
-    // DELETE once SimpleWorldSpaceIcon element structure is confirmed.
-    [HarmonyPatch(typeof(Il2CppWorldSpaceIcon), nameof(Il2CppWorldSpaceIcon.Update))]
-    private static class Patch_WorldSpaceIcon_Update_Scan
-    {
-        private static void Postfix(Il2CppWorldSpaceIcon __instance)
-        {
-            try
-            {
-                var typeName = __instance.GetIl2CppType().Name;
-                // BleedingWorldSpaceIcon has its own patch via SetText -- skip it here.
-                if (typeName == "BleedingWorldSpaceIcon") return;
-                var el = __instance.Cast<Il2CppInterfaceElement>();
-                Scans.RunWorldSpaceIconScan(el, typeName);
-            }
-            catch (Exception ex) { Log.Warning($"[HUDCustomizer] Patch_WorldSpaceIcon_Update_Scan: {ex.Message}"); }
         }
     }
 }

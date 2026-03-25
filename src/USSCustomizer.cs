@@ -60,6 +60,13 @@ public static class USSCustomizer
         if (c.ColorProgressBarBright.Enabled)    uiConfig.ColorProgressBarBright    = HUDCustomizerPlugin.ToColor(c.ColorProgressBarBright,    "ColorProgressBarBright");
         if (c.ColorEmptySlotIcon.Enabled)        uiConfig.ColorEmptySlotIcon        = HUDCustomizerPlugin.ToColor(c.ColorEmptySlotIcon,        "ColorEmptySlotIcon");
 
+        // Mission state colours
+        if (c.ColorMissionPlayable.Enabled)    uiConfig.ColorMissionPlayable    = HUDCustomizerPlugin.ToColor(c.ColorMissionPlayable,    "ColorMissionPlayable");
+        if (c.ColorMissionLocked.Enabled)      uiConfig.ColorMissionLocked      = HUDCustomizerPlugin.ToColor(c.ColorMissionLocked,      "ColorMissionLocked");
+        if (c.ColorMissionPlayed.Enabled)      uiConfig.ColorMissionPlayed      = HUDCustomizerPlugin.ToColor(c.ColorMissionPlayed,      "ColorMissionPlayed");
+        if (c.ColorMissionPlayedArrow.Enabled) uiConfig.ColorMissionPlayedArrow = HUDCustomizerPlugin.ToColor(c.ColorMissionPlayedArrow, "ColorMissionPlayedArrow");
+        if (c.ColorMissionUnplayable.Enabled)  uiConfig.ColorMissionUnplayable  = HUDCustomizerPlugin.ToColor(c.ColorMissionUnplayable,  "ColorMissionUnplayable");
+
         HUDCustomizerPlugin.Debug("[USSCustomizer] USS colours applied.");
     }
 
@@ -99,6 +106,11 @@ public static class USSCustomizer
         Check("ColorProgressBarNormal",    c.ColorProgressBarNormal);
         Check("ColorProgressBarBright",    c.ColorProgressBarBright);
         Check("ColorEmptySlotIcon",        c.ColorEmptySlotIcon);
+        Check("ColorMissionPlayable",    c.ColorMissionPlayable);
+        Check("ColorMissionLocked",      c.ColorMissionLocked);
+        Check("ColorMissionPlayed",      c.ColorMissionPlayed);
+        Check("ColorMissionPlayedArrow", c.ColorMissionPlayedArrow);
+        Check("ColorMissionUnplayable",  c.ColorMissionUnplayable);
 
         if (active.Count == 0)
             HUDCustomizerPlugin.Log.Msg(

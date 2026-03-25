@@ -198,6 +198,41 @@ public static class UnitCustomizer
         HUDCustomizerPlugin.Debug("[UnitCustomizer] Faction health bar colours applied.");
     }
 
+    public static void ApplyRarityColors()
+    {
+        var uiConfig = Il2CppMenace.UI.UIConfig.Get();
+        if (uiConfig == null)
+        {
+            HUDCustomizerPlugin.Log.Warning("[UnitCustomizer] ApplyRarityColors: UIConfig.Get() returned null.");
+            return;
+        }
+
+        var r = HUDCustomizerPlugin.Config.RarityColors;
+
+        if (r.Common.Enabled)        uiConfig.ColorCommonRarity       = HUDCustomizerPlugin.ToColor(r.Common,        "ColorCommonRarity");
+        if (r.CommonNamed.Enabled)   uiConfig.ColorCommonRarityNamed  = HUDCustomizerPlugin.ToColor(r.CommonNamed,   "ColorCommonRarityNamed");
+        if (r.Uncommon.Enabled)      uiConfig.ColorUncommonRarity     = HUDCustomizerPlugin.ToColor(r.Uncommon,      "ColorUncommonRarity");
+        if (r.UncommonNamed.Enabled) uiConfig.ColorUncommonRarityNamed= HUDCustomizerPlugin.ToColor(r.UncommonNamed, "ColorUncommonRarityNamed");
+        if (r.Rare.Enabled)          uiConfig.ColorRareRarity         = HUDCustomizerPlugin.ToColor(r.Rare,          "ColorRareRarity");
+        if (r.RareNamed.Enabled)     uiConfig.ColorRareRarityNamed    = HUDCustomizerPlugin.ToColor(r.RareNamed,     "ColorRareRarityNamed");
+        if (r.ColorPositionMarkerDelayedAbility.Enabled) uiConfig.ColorPositionMarkerDelayedAbility = HUDCustomizerPlugin.ToColor(r.ColorPositionMarkerDelayedAbility, "ColorPositionMarkerDelayedAbility");
+
+        // Read back from the live UIConfig instance to confirm writes landed.
+        var uiConfigCheck = Il2CppMenace.UI.UIConfig.Get();
+        if (uiConfigCheck != null)
+        {
+            HUDCustomizerPlugin.Log.Msg($"[RarityCheck] ColorCommonRarity = {uiConfigCheck.ColorCommonRarity}");
+            HUDCustomizerPlugin.Log.Msg($"[RarityCheck] ColorCommonRarityNamed = {uiConfigCheck.ColorCommonRarityNamed}");
+            HUDCustomizerPlugin.Log.Msg($"[RarityCheck] ColorUncommonRarity = {uiConfigCheck.ColorUncommonRarity}");
+            HUDCustomizerPlugin.Log.Msg($"[RarityCheck] ColorUncommonRarityNamed = {uiConfigCheck.ColorUncommonRarityNamed}");
+            HUDCustomizerPlugin.Log.Msg($"[RarityCheck] ColorRareRarity = {uiConfigCheck.ColorRareRarity}");
+            HUDCustomizerPlugin.Log.Msg($"[RarityCheck] ColorRareRarityNamed = {uiConfigCheck.ColorRareRarityNamed}");
+            HUDCustomizerPlugin.Log.Msg($"[RarityCheck] ColorPositionMarkerDelayedAbility = {uiConfigCheck.ColorPositionMarkerDelayedAbility}");
+        }
+
+        HUDCustomizerPlugin.Debug("[UnitCustomizer] Rarity colours applied.");
+    }
+
     public static void LogFactionHealthBarSummary()
     {
         var f      = HUDCustomizerPlugin.Config.FactionHealthBarColors;
@@ -223,5 +258,31 @@ public static class UnitCustomizer
         else
             HUDCustomizerPlugin.Log.Msg(
                 $"  [Unit] Faction health bar overrides active ({active.Count}): {string.Join("  ", active)}");
+    }
+
+    public static void LogRarityColorSummary()
+    {
+        var r      = HUDCustomizerPlugin.Config.RarityColors;
+        var active = new List<string>();
+
+        void Check(string label, TileHighlightEntry e)
+        {
+            if (e.Enabled) active.Add($"{label}=RGB({(int)e.R},{(int)e.G},{(int)e.B})");
+        }
+
+        Check("Common",        r.Common);
+        Check("CommonNamed",   r.CommonNamed);
+        Check("Uncommon",      r.Uncommon);
+        Check("UncommonNamed", r.UncommonNamed);
+        Check("Rare",          r.Rare);
+        Check("RareNamed",     r.RareNamed);
+        Check("PosMarkerDelayedAbility", r.ColorPositionMarkerDelayedAbility);
+
+        if (active.Count == 0)
+            HUDCustomizerPlugin.Log.Msg(
+                "  [Unit] Rarity colour overrides: none (all disabled -- game defaults preserved)");
+        else
+            HUDCustomizerPlugin.Log.Msg(
+                $"  [Unit] Rarity colour overrides active ({active.Count}): {string.Join("  ", active)}");
     }
 }

@@ -50,6 +50,7 @@ public static class Scans
 
     public static void RunUIConfigScan()
     {
+        HUDCustomizerPlugin.Log.Msg("[UIConfigScan] CheckGate result: " + CheckGate());
         if (!CheckGate()) return;
         if (_uiConfigScanned) return;
         _uiConfigScanned = true;
@@ -251,26 +252,6 @@ public static class Scans
             HUDCustomizerPlugin.Log.Error($"[ElemScan/{label}] Exception: {ex.Message}");
         }
         HUDCustomizerPlugin.Log.Msg($"=== End Element Scan [{label}] ===");
-    }
-
-    // =========================================================================
-    // WorldSpaceIcon subtype discovery scan
-    // Logs each new concrete WorldSpaceIcon subtype and dumps its element tree.
-    // Called from Patch_WorldSpaceIcon_Update_Scan in HUDCustomizer.cs.
-    // BleedingWorldSpaceIcon is excluded here; it has its own element scan
-    // triggered via Patch_BleedingWorldSpaceIcon_SetText.
-    // DELETE once SimpleWorldSpaceIcon element structure is confirmed.
-    // =========================================================================
-    private static readonly HashSet<string> _worldSpaceIconScanned = new();
-
-    public static void RunWorldSpaceIconScan(Il2CppInterfaceElement element, string typeName)
-    {
-        if (!CheckGate()) return;
-        if (!_worldSpaceIconScanned.Add(typeName)) return;
-
-        HUDCustomizerPlugin.Log.Msg(
-            $"[WorldSpaceIconScan] Discovered WorldSpaceIcon subtype: '{typeName}'");
-        RunElementScan(element, $"WorldSpaceIcon/{typeName}");
     }
 
     // =========================================================================
