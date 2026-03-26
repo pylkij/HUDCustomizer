@@ -9,13 +9,14 @@ using Il2CppLineOfSightVisualizer  = Il2CppMenace.Tactical.LineOfSightVisualizer
 // =============================================================================
 // VisualizerCustomizer
 // Applies colour and parameter overrides to the three world-space 3D visualizers:
-//   - MovementVisualizer   (path polyline: ReachableColor, UnreachableColor)
-//   - TargetAimVisualizer  (aim spline:    OutOfRangeColor, float params,
-//                                          material in-range colour via
-//                                          MaterialPropertyBlock)
-//   - LineOfSightVisualizer (pending scan confirmation -- no colour fields
-//                            are directly exposed on the component; a scan
-//                            runs at Start() to inspect the Line[] children)
+//   - MovementVisualizer    (path polyline: ReachableColor, UnreachableColor)
+//   - TargetAimVisualizer   (aim spline:    OutOfRangeColor via MPB, float params,
+//                                           material in-range colour via
+//                                           MaterialPropertyBlock)
+//   - LineOfSightVisualizer (LOS lines:     LineColor via Il2CppShapes.Line
+//                                           ColorStart/ColorEnd on each child;
+//                                           implemented via LOSResizePatch +
+//                                           ApplyLineOfSightColor + TryApplyLineOfSight)
 //
 // TryApply() is called from HUDCustomizerPlugin.OnTacticalReady() and from
 // OnUpdate() on hot-reload.  It enumerates all live MonoBehaviour instances of
@@ -25,19 +26,20 @@ using Il2CppLineOfSightVisualizer  = Il2CppMenace.Tactical.LineOfSightVisualizer
 // Each colour slot: { "Enabled": bool, "R": 0-255, "G": 0-255, "B": 0-255, "A": 0.0-1.0 }
 // Each float slot:  numeric value, or the magic sentinel -1 to leave unchanged.
 //
-// Material in-range colour for TargetAimVisualizer:
-//   The in-range line colour is driven by the Material and Textures assigned in
-//   the Unity prefab, not by a direct Color field.  We attempt to override it via
-//   MaterialPropertyBlock using the standard shader property "_Color".  If the
-//   shader uses a different property name this will silently have no effect; a
-//   future scan of the material's shader properties can confirm the correct name.
+// Material colour for TargetAimVisualizer:
+//   Both InRangeColor and OutOfRangeColor are applied via MaterialPropertyBlock
+//   using confirmed shader properties "_UnlitColor" (base tint) and
+//   "_EmissiveColor" (glow).  OutOfRangeColor is also written to the native
+//   component field, but UpdateAim() ignores that field for out-of-range
+//   rendering; the MPB write in ReapplyTargetAimVisualizerColors is what
+//   actually takes effect.
 //
 // LineOfSightVisualizer:
-//   The component itself exposes no Color fields -- colours live on the Shapes
-//   library Line objects inside m_Lines (private List<Line[]>).  A scan patch
-//   fires once at Start() to enumerate those Line instances via reflection and
-//   confirm whether their colour fields are accessible.  No colour config is
-//   wired until the scan confirms the approach.
+//   Renderer type confirmed as Il2CppShapes.Line (Il2CppShapesRuntime.dll,
+//   namespace Il2CppShapes).  Colour is written via ColorStart/ColorEnd only
+//   in Resize(int) -- LOSResizePatch re-applies after every pool growth.
+//   GetComponentsInChildren<T> is fatal for this type; indexed GetChild(i)
+//   traversal is used instead.  Config slot: Visualizers.LineOfSight.LineColor.
 // =============================================================================
 public static class VisualizerCustomizer
 {
@@ -194,8 +196,10 @@ public static class VisualizerCustomizer
         if (cfg.DistanceToHeightScale >= 0f)
             instance.DistanceToHeightScale = cfg.DistanceToHeightScale;
 
-        // OutOfRangeColor is a native field on Il2CppTargetAimVisualizer.
-        // Written directly so the game's own range-check logic reads the correct value.
+        // OutOfRangeColor: written to the native field so the component holds the
+        // configured value, but UpdateAim() hardcodes white for the out-of-range
+        // rendering path without reading this field.  The effective colour override
+        // is applied via MPB in ReapplyTargetAimVisualizerColors (postfix on UpdateAim).
         if (cfg.OutOfRangeColor.Enabled)
         {
             instance.OutOfRangeColor = HUDCustomizerPlugin.ToColor(cfg.OutOfRangeColor, "TargetAimVisualizer.OutOfRangeColor");
@@ -410,11 +414,16 @@ public static class VisualizerCustomizer
 
     // =========================================================================
     // Re-apply after UpdateAim (called from patch in HUDCustomizer.cs)
-    // UpdateAim writes to material.SetColor (not MPB) -- our MPB overrides it.
-    // We read what the game just wrote to the material to detect range state:
-    //   in-range  -> game wrote white (1,1,1,1)
-    //   out-of-range -> game wrote OutOfRangeColor (non-white)
-    // Then we write the correct colour into the MPB to match.
+    // UpdateAim rebuilds the spline mesh and rewrites material colours each call,
+    // which resets any MPB overrides.  We re-apply here after every UpdateAim.
+    //
+    // Range state detection: UpdateAim writes to material.SetColor directly
+    // (confirmed via Ghidra).  We read what it just wrote to detect state:
+    //   in-range     -> game wrote white (1,1,1,1) to _UnlitColor
+    //   out-of-range -> game hardcoded white too (OutOfRangeColor field is NOT
+    //                   read by UpdateAim -- root cause confirmed via Ghidra).
+    // For out-of-range we override _UnlitColor via MPB with the configured
+    // OutOfRangeColor.  This is the fix that makes OutOfRangeColor functional.
     // =========================================================================
     internal static void ReapplyTargetAimVisualizerColors(Il2CppTargetAimVisualizer instance)
     {

@@ -13,15 +13,17 @@ A mod for **MENACE** that lets you change the appearance of the tactical HUD —
 
 ## Installation
 
-1. Download repository as a .ZIP and select the .ZIP via the Menace Modkit +Add Mod button. Select Deploy to Game.
-
+1. Copy the `HUDCustomizer` folder into your `Mods` directory:
+   ```
+   Menace/Mods/HUDCustomizer/
+   ```
 2. Launch the game. On first run, the mod creates the config file automatically:
    ```
    Menace/Mods/HUDCustomizer/HUDCustomizer.json
    ```
 3. Open that file in any text editor to start customising.
 
-> **Note:** Each time the config loads successfully, the mod saves a backup copy to `Menace/UserData/HUDCustomizer/HUDCustomizer.json`. If you unload and reload the mod, your settings are automatically restored from this backup on next launch.
+> **Note:** Each time the config loads successfully, the mod saves a backup copy to `Menace/UserData/HUDCustomizer/HUDCustomizer.json`. If you uninstall and reinstall the mod, your settings are automatically restored from this backup on next launch.
 
 ---
 
@@ -33,7 +35,7 @@ Open `HUDCustomizer.json` in a text editor. Every setting has a comment above or
 
 Press **F8** while in a tactical mission to reload the config instantly. The key is configurable — see `ReloadKey` at the bottom of the config file.
 
-Hot-reload only works during a tactical mission. Changes to tile highlights, fonts, colours, scaling, and visualizer settings all apply immediately when you press the key. You do not need to restart the game or reload the mission.
+Hot-reload only works during a tactical mission. Changes to tile highlights, fonts, colours (including USS theme colours, rarity colours, and faction health bar colours), scaling, visualizer settings, and spent unit opacity all apply immediately when you press the key. You do not need to restart the game or reload the mission.
 
 ---
 
@@ -46,6 +48,7 @@ Controls how large the floating HUD elements above each unit appear.
 - **UnitHUDScale** — scales infantry and soldier HUDs. `1.0` is the original size, `1.5` is 50% larger, `0.8` is 20% smaller.
 - **EntityHUDScale** — scales vehicle, emplacement, and other non-infantry HUDs separately.
 - **TransformOriginX / TransformOriginY** — controls which point of the HUD stays in place as you scale it. At the defaults, HUDs grow upward from their base — increasing the scale makes the bar taller without pushing it down into the unit below. `X: 50` is horizontal centre. `Y: 100` pins the bottom edge, `Y: 0` pins the top edge, `Y: 50` pins the middle.
+- **SpentUnitHUDOpacity** — controls how transparent a unit's HUD becomes after it has used its turn. The game default is `0.5` (50% opacity, visibly dimmed). Set to `1.0` to keep spent units fully visible, or `0.0` to make them invisible. Set to `-1` to leave the game default unchanged.
 
 ### Unit and entity HUD bar colours
 
@@ -223,6 +226,27 @@ Each slot uses the same `{ "Enabled": false, "R": ..., "G": ..., "B": ..., "A": 
 | `ColorProgressBarNormal` | Progress bar fill | 225, 225, 225 |
 | `ColorProgressBarBright` | Progress bar bright variant | 232, 205, 124 |
 | `ColorEmptySlotIcon` | Empty equipment slot icons | 65, 86, 90 |
+| `ColorMissionPlayable` | Campaign map — available mission node | 168, 152, 103 |
+| `ColorMissionLocked` | Campaign map — locked mission node | 168, 152, 103 |
+| `ColorMissionPlayed` | Campaign map — completed mission node | 113, 102, 69 |
+| `ColorMissionPlayedArrow` | Campaign map — arrow on completed node | 75, 67, 44, A=0.50 |
+| `ColorMissionUnplayable` | Campaign map — unplayable mission node | 115, 115, 115 |
+
+### Rarity and item colours
+
+Controls the colours used to display item and unit rarity throughout the UI — in tooltips, the loadout screen, and anywhere rarity is indicated.
+
+These are stored under `"RarityColors"` in the config. Each slot uses the `{ "Enabled": false, "R": ..., "G": ..., "B": ..., "A": ... }` format. Set `"Enabled": true` to activate the override for that slot.
+
+| Slot | What it colours | Default (RGB) |
+|---|---|---|
+| `Common` | Common rarity label / border | 116, 108, 75 |
+| `CommonNamed` | Named common item label | 216, 232, 203 |
+| `Uncommon` | Uncommon rarity label / border | 61, 117, 136 |
+| `UncommonNamed` | Named uncommon item label | 185, 208, 214 |
+| `Rare` | Rare rarity label / border | 189, 49, 49 |
+| `RareNamed` | Named rare item label | 252, 241, 240 |
+| `ColorPositionMarkerDelayedAbility` | World-space marker for delayed off-map abilities | 0, 255, 255 |
 
 ### Tactical visualizer colours
 
@@ -248,7 +272,7 @@ Controls the animated arc drawn from your unit to a target when selecting a skil
 | `InRangeColor` | Base tint of the line texture. Default: white (no tint) |
 | `InRangeEmissiveColor` | Hue of the bloom/glow effect. Default: white |
 | `EmissiveIntensity` | Brightness of the bloom. Game default is ~15, which produces a strong glow. Set to `0` to remove bloom entirely. Use `-1` to leave unchanged |
-| `OutOfRangeColor` | ⚠️ **Work in progress** — setting does not currently take effect |
+| `OutOfRangeColor` | Colour of the line when the target is out of range |
 | `AnimationScrollSpeed` | How fast the texture animates along the line. Use `-1` to leave unchanged |
 | `Width` | World-space width of the line in metres. Use `-1` to leave unchanged |
 | `MinimumHeight` | Minimum arc height above terrain. Use `-1` to leave unchanged |
@@ -319,7 +343,7 @@ Because flyovers display one at a time in sequence, the total time to see all fl
 
 **The aim line colour change isn't working.**
 
-The aim line uses an HDRP Unlit shader with a strong bloom effect. If you set `InRangeColor` but see no change, the bloom may be overpowering it. Try reducing `EmissiveIntensity` to a value between `1` and `5` at the same time. If setting `OutOfRangeColor`, note that this is currently marked as work in progress and has no effect.
+The aim line uses an HDRP Unlit shader with a strong bloom effect. If you set `InRangeColor` but see no change, the bloom may be overpowering it. Try reducing `EmissiveIntensity` to a value between `1` and `5` at the same time.
 
 **The game showed an error about the config file.**
 

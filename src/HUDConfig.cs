@@ -119,8 +119,7 @@ public class HUDCustomizerConfig
     public FontSettings MovementCostLabel   { get; set; } = new();
     public FontSettings MovementActionLabel { get; set; } = new();
 
-    // BleedingWorldSpaceIcon text elements (confirmed in source)
-    // UXML element names pending scan confirmation.
+    // BleedingWorldSpaceIcon text elements (element name confirmed by scan: "TextElement")
     public FontSettings BleedingIconText    { get; set; } = new(); // m_TextElement
 
     // DropdownText -- flyover text shown above units on skill/status application
@@ -209,6 +208,8 @@ public class TileHighlightsConfig
 // Each slot maps directly to a public Color field on UIConfig (confirmed in UIConfig.cs).
 // Set Enabled = true and adjust R/G/B/A to override that slot.
 // Game defaults from UIConfig scan are documented in HUDCustomizer.json.
+// Includes 23 general USS fields plus 5 mission state fields
+// (ColorMissionPlayable/Locked/Played/PlayedArrow/Unplayable -- all carry [UssColor]).
 public class USSColorsConfig
 {
     // General text / UI
@@ -306,8 +307,11 @@ public class MovementVisualizerConfig
 // Colour and parameter overrides for the 3D aim spline drawn when targeting.
 // Exposed fields (from TargetAimVisualizer.cs source + material scan):
 //
-//   OutOfRangeColor      -- direct Color field on the component: colour used
-//                           when the target is out of range.
+//   OutOfRangeColor      -- colour applied when the target is out of range.
+//                           UpdateAim() does not read the native field for
+//                           out-of-range rendering (root cause confirmed via
+//                           Ghidra); the override is applied via MPB in the
+//                           Patch_TargetAimVisualizer_UpdateAim postfix.
 //
 //   InRangeColor         -- sets shader property '_UnlitColor' on the aim
 //                           mesh material (HDRP/Unlit).  Controls the base
@@ -567,7 +571,7 @@ public static class HUDConfig
   ""MovementCostLabel"":     { ""Font"": """", ""Size"": 0, ""Color"": """" },
   ""MovementActionLabel"":   { ""Font"": """", ""Size"": 0, ""Color"": """" },
 
-  // BleedingWorldSpaceIcon (element name pending scan -- derived from m_TextElement)
+  // BleedingWorldSpaceIcon (element name confirmed by scan: "TextElement")
   ""BleedingIconText"":      { ""Font"": """", ""Size"": 0, ""Color"": """" },
 
   // DropdownText -- flyover text shown above units on skill/status application
@@ -683,7 +687,8 @@ public static class HUDConfig
        ""UnreachableColor"": { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 }
      },
     ""TargetAimVisualizer"": {
-      // OutOfRangeColor: direct Color field on the component. WIP. Currently broken.
+      // OutOfRangeColor: applied via MaterialPropertyBlock in the UpdateAim postfix.
+      // UpdateAim() does not read the native field; the MPB override is the effective fix.
       ""OutOfRangeColor"":         { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 },
 
       // InRangeColor: sets '_UnlitColor' on the HDRP/Unlit aim material.

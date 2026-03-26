@@ -11,6 +11,10 @@ using Il2CppInterfaceElement = Il2CppMenace.UI.InterfaceElement;
 //   - CSS scale and transform origin
 //   - Bar fill, preview, and track background colours
 //   - Badge sprite tint
+//   - Faction health bar colours (via UIConfig singleton)
+//   - Rarity colours: ColorCommonRarity/Named, ColorUncommonRarity/Named,
+//     ColorRareRarity/Named (via UIConfig -- non-USS, FactionHealthBar pattern)
+//   - ColorPositionMarkerDelayedAbility (via UIConfig -- same pattern)
 //
 // Element paths confirmed by scan:
 //   root

@@ -259,14 +259,16 @@ public static class Scans
     // Dumps all shader properties on every material found on MeshRenderers that
     // are children of the TargetAimVisualizer GameObject.
     //
-    // This tells us the correct property name to pass to
-    // MaterialPropertyBlock.SetColor() instead of the guessed "_Color".
+    // Confirmed findings:
+    //   _UnlitColor    -- base line colour tint; hardcoded in VisualizerCustomizer
+    //                     as UnlitColorProperty. Writes via MPB are effective.
+    //   _EmissiveColor -- HDR glow/bloom colour; hardcoded as EmissiveColorProperty.
+    //   _Color         -- legacy stub; HasProperty=true but writes have no effect.
     //
     // Called from Patch_TargetAimVisualizer_UpdateAim in HUDCustomizer.cs
     // (fires once, gated on EnableScans).
     //
-    // DELETE once the correct property name is confirmed and hardcoded in
-    // VisualizerCustomizer.cs as MaterialColorProperty.
+    // DELETE once no longer needed for development reference.
     // =========================================================================
     private static bool _targetAimMaterialScanned = false;
 
@@ -379,15 +381,13 @@ public static class Scans
     // =========================================================================
     // SetOpacity scan
     // Tracks the resolved opacity of each UnitHUD root element and logs
-    // whenever it changes.  Called from Patch_UnitHUD_OnUpdate_Scan every
-    // frame -- the per-instance change detection keeps log output sparse.
+    // whenever it changes.  Per-instance change detection keeps log output sparse.
     //
-    // Needed to confirm:
-    //   - The exact opacity value the game applies when a unit is spent
-    //   - Whether opacity is applied to the root element or a child
-    //   - Whether the value changes once per turn-end or repeatedly per frame
+    // Confirmed findings:
+    //   - Spent value: 0.5 (applied to root element once per turn-end)
+    //   - Active restore value: 1.0
+    //   - Opacity is applied to the root element, not a child
     //
-    // Called from Patch_UnitHUD_OnUpdate_Scan in HUDCustomizer.cs.
     // DELETE once spent-opacity value and element target are confirmed.
     // =========================================================================
     private static readonly Dictionary<IntPtr, float> _lastOpacity = new();

@@ -25,30 +25,30 @@ Two findings from previous work were incorrect and have been fixed in `CONTRIBUT
 **`LineOfSightVisualizer` is implementable — and implemented**
 The original scan declared this impossible due to "Shapes library types with no Il2CppInterop bindings." Ghidra decompilation and runtime verification confirmed the components are `Il2CppShapes.Line` instances from `Il2CppShapesRuntime.dll` (namespace `Il2CppShapes`, class `Line`). An earlier intermediate finding incorrectly identified them as `UnityEngine.LineRenderer` — that was also retracted. Colour is written only in `Resize(int)` via `ColorStart`/`ColorEnd` on each `Line`. `GetComponentsInChildren<T>` throws a fatal Il2CppInterop exception for this type; indexed `GetChild(i).GetComponent<Il2CppShapes.Line>()` traversal is required. Fully implemented via `LOSResizePatch`, `ApplyLineOfSightColor`, and `TryApplyLineOfSight`. Verified in log.
 
-**`TargetAimVisualizer.OutOfRangeColor` root cause identified**
-The field write was always succeeding but having no effect because `UpdateAim()` hardcodes white into the out-of-range rendering path without reading the field. The fix is a one-line addition to the existing `Patch_TargetAimVisualizer_UpdateAim` postfix.
+**`TargetAimVisualizer.OutOfRangeColor` root cause identified and fixed**
+The field write was always succeeding but having no effect because `UpdateAim()` hardcodes white into the out-of-range rendering path without reading the field. Fixed by applying `OutOfRangeColor` as `_UnlitColor` via `MaterialPropertyBlock` in the `Patch_TargetAimVisualizer_UpdateAim` postfix (after `UpdateAim()` runs, so the override is never overwritten until the next call). Fully implemented.
 
 ---
 
-## Confirmed gaps — ready to implement
+## Confirmed gaps — implemented in Tier 1
 
-These require no further investigation. All field names, hook methods, and implementation patterns are confirmed in `CONTRIBUTOR_README.md` Section 10 or 11.
+The following items were confirmed gaps at investigation time and have since been implemented.
 
-### UIConfig colours not yet exposed
+### UIConfig colours — ✅ implemented
 
-| Group | Fields | Count | USS? | Pattern |
-|---|---|---|---|---|
-| Rarity colours | `ColorCommonRarity/Named`, `ColorUncommonRarity/Named`, `ColorRareRarity/Named` | 6 | No | `UnitCustomizer` / FactionHealthBar pattern |
-| Mission state colours | `ColorMissionPlayable/Locked/Played/PlayedArrow/Unplayable` | 5 | Yes | `USSCustomizer.TryApply()` |
-| Delayed ability marker | `ColorPositionMarkerDelayedAbility` | 1 | No | `UnitCustomizer` / FactionHealthBar pattern |
+| Group | Fields | Count | USS? | Pattern | Status |
+|---|---|---|---|---|---|
+| Rarity colours | `ColorCommonRarity/Named`, `ColorUncommonRarity/Named`, `ColorRareRarity/Named` | 6 | No | `UnitCustomizer.ApplyRarityColors()` | ✅ Done |
+| Mission state colours | `ColorMissionPlayable/Locked/Played/PlayedArrow/Unplayable` | 5 | Yes | `USSCustomizer.TryApply()` | ✅ Done |
+| Delayed ability marker | `ColorPositionMarkerDelayedAbility` | 1 | No | `UnitCustomizer.ApplyRarityColors()` | ✅ Done |
 
 ### ObjectivesTracker progress bar
 
-Bar element confirmed by scan: `ProgressBar > Pickable > Fill / PreviewFill`. Uses the same `ApplyBarColours()` pattern as unit bars. Hook already exists in `Patch_ObjectivesTracker_Init`.
+Bar element confirmed by scan: `ProgressBar > Pickable > Fill / PreviewFill`. Uses the same `ApplyBarColours()` pattern as unit bars. Hook already exists in `Patch_ObjectivesTracker_Init`. **Not yet implemented** — config fields not yet added.
 
 ### StructureHUD scale
 
-`StructureHUD` inherits `EntityHUD` — bar colours and fonts already apply for free via `Patch_EntityHUD_InitBars`. Only a `StructureHUDScale` config entry is missing.
+`StructureHUD` inherits `EntityHUD` — bar colours and fonts already apply for free via `Patch_EntityHUD_InitBars`. Only a `StructureHUDScale` config entry is missing. **Not yet implemented.**
 
 ---
 
@@ -122,9 +122,9 @@ Line-of-sight ray visualisation. Renderer type confirmed as `Il2CppShapes.Line` 
 
 Implemented: `LOSResizePatch` postfixes `Resize(int)` to re-apply colour after each pool growth. `ApplyLineOfSightColor` applies the fade pattern to all children. `TryApplyLineOfSight` handles `TacticalReady` and hot-reload. `LogLineOfSightSummary` confirmed in log. Config slot: `Visualizers.LineOfSight.LineColor`.
 
-### TargetAimVisualizer OutOfRangeColor (WIP fix)
+### TargetAimVisualizer OutOfRangeColor ✅ COMPLETED
 
-Root cause confirmed. `UpdateAim()` hardcodes white for the out-of-range path without reading `OutOfRangeColor`. Fix: apply configured colour as `_UnlitColor` via `MaterialPropertyBlock` in the existing `Patch_TargetAimVisualizer_UpdateAim` postfix. One-line change.
+Root cause confirmed and fixed. `UpdateAim()` hardcodes white for the out-of-range path without reading `OutOfRangeColor`. Fixed by writing `OutOfRangeColor` as `_UnlitColor` via `MaterialPropertyBlock` in the `Patch_TargetAimVisualizer_UpdateAim` postfix, after `UpdateAim()` runs. Range state is detected by reading `_UnlitColor` back from the material (white = in-range, game-set; non-white = override already applied). Config slot: `Visualizers.TargetAimVisualizer.OutOfRangeColor`.
 
 ---
 
@@ -145,17 +145,17 @@ Root cause confirmed. `UpdateAim()` hardcodes white for the out-of-range path wi
 
 ---
 
-## Cleanup required before 1.0
+## Cleanup completed before 1.0
 
-These are code hygiene items with no user-facing impact, but should be done before release.
+All pre-1.0 cleanup items have been completed.
 
-| Item | Action |
+| Item | Status |
 |---|---|
-| `Patch_WorldSpaceIcon_Update_Scan` | Delete entire class + `RegisterPatches()` entry + `Scans.RunWorldSpaceIconScan()` |
-| `Patch_UnitHUD_OnUpdate_Scan` | Delete entire class + `RegisterPatches()` entry |
-| `BleedingWorldSpaceIcon` element name | Run with `EnableScans: true` to confirm `"TextElement"` prediction, then replace `QueryAndSet` with `SetFont(el.Q(...))` |
-| `VisualizerCustomizer.LogSummary()` | ✅ Done — "not supported" note removed. |
-| `README.md` (user-facing) | Remove "not supported" note for `LineOfSightVisualizer` |
+| `Patch_WorldSpaceIcon_Update_Scan` | ✅ Deleted — class, `RegisterPatches()` entry, and `Scans.RunWorldSpaceIconScan()` all removed |
+| `Patch_UnitHUD_OnUpdate_Scan` | ✅ Deleted — class and `RegisterPatches()` entry removed |
+| `BleedingWorldSpaceIcon` element name | ✅ Confirmed as `"TextElement"` by scan — `QueryAndSet` replaced with `SetFont(el.Q(...))` |
+| `VisualizerCustomizer.LogSummary()` | ✅ Done — "not supported" note removed |
+| `README.md` (user-facing) | ✅ Done — "not supported" note for `LineOfSightVisualizer` removed |
 
 ---
 
@@ -163,15 +163,13 @@ These are code hygiene items with no user-facing impact, but should be done befo
 
 Ordered by expected player-visible impact. Items within the same tier can be done in any order.
 
-### Tier 1 — High impact, low effort
+### Tier 1 — ✅ All completed
 
-These are either one-liners or follow a pattern already in the codebase with confirmed field data.
-
-1. **`TargetAimVisualizer.OutOfRangeColor` fix** — One line in an existing postfix. Completes a half-working feature.
-2. **UIConfig mission colours** (5 fields) — Identical pattern to existing USS fields. Affects the campaign map.
-3. **UIConfig rarity colours** (6 fields) — Identical pattern to `FactionHealthBarColors`. Affects item/unit rarity display throughout the UI.
-4. **`ColorPositionMarkerDelayedAbility`** — Single field, same pattern as rarity colours.
-5. **Pre-1.0 cleanup** — Scan patch deletion and `BleedingWorldSpaceIcon` confirmation. No risk.
+1. **`TargetAimVisualizer.OutOfRangeColor` fix** ✅ — Applied via `MaterialPropertyBlock` in `Patch_TargetAimVisualizer_UpdateAim` postfix. Fully functional.
+2. **UIConfig mission colours** (5 fields) ✅ — Implemented via `USSCustomizer.TryApply()`. Affects the campaign map.
+3. **UIConfig rarity colours** (6 fields) ✅ — Implemented via `UnitCustomizer.ApplyRarityColors()`. Affects item/unit rarity display throughout the UI.
+4. **`ColorPositionMarkerDelayedAbility`** ✅ — Implemented alongside rarity colours in `UnitCustomizer.ApplyRarityColors()`.
+5. **Pre-1.0 cleanup** ✅ — Scan patches deleted, `BleedingWorldSpaceIcon` confirmed, `README.md` note removed.
 
 ### Tier 2 — High impact, moderate effort
 
@@ -231,12 +229,12 @@ For reference, the full confirmed field list from `dump.cs`. Memory offsets are 
 | `ColorProgressBarNormal` | `0x290` | Yes | ✅ |
 | `ColorProgressBarBright` | `0x2A0` | Yes | ✅ |
 | `ColorEmptySlotIcon` | `0x2B0` | Yes | ✅ |
-| `ColorCommonRarity` | `0x2C0` | No | ❌ |
-| `ColorCommonRarityNamed` | `0x2D0` | No | ❌ |
-| `ColorUncommonRarity` | `0x2E0` | No | ❌ |
-| `ColorUncommonRarityNamed` | `0x2F0` | No | ❌ |
-| `ColorRareRarity` | `0x300` | No | ❌ |
-| `ColorRareRarityNamed` | `0x310` | No | ❌ |
+| `ColorCommonRarity` | `0x2C0` | No | ✅ |
+| `ColorCommonRarityNamed` | `0x2D0` | No | ✅ |
+| `ColorUncommonRarity` | `0x2E0` | No | ✅ |
+| `ColorUncommonRarityNamed` | `0x2F0` | No | ✅ |
+| `ColorRareRarity` | `0x300` | No | ✅ |
+| `ColorRareRarityNamed` | `0x310` | No | ✅ |
 | `HealthBarFillColorPlayerUnits` | `0x328` | No | ✅ |
 | `HealthBarPreviewColorPlayerUnits` | `0x338` | No | ✅ |
 | `HealthBarFillColorAllies` | `0x348` | No | ✅ |
@@ -245,9 +243,9 @@ For reference, the full confirmed field list from `dump.cs`. Memory offsets are 
 | `HealthBarPreviewColorEnemies` | `0x378` | No | ✅ |
 | `HealthBarSectionColorPlayerUnits` | `0x388` | No | ✅ |
 | `HealthBarSectionColorEnemies` | `0x398` | No | ✅ |
-| `ColorMissionPlayable` | `0x500` | Yes | ❌ |
-| `ColorMissionLocked` | `0x510` | Yes | ❌ |
-| `ColorMissionPlayed` | `0x520` | Yes | ❌ |
-| `ColorMissionPlayedArrow` | `0x530` | Yes | ❌ |
-| `ColorMissionUnplayable` | `0x540` | Yes | ❌ |
-| `ColorPositionMarkerDelayedAbility` | `0x608` | No | ❌ |
+| `ColorMissionPlayable` | `0x500` | Yes | ✅ |
+| `ColorMissionLocked` | `0x510` | Yes | ✅ |
+| `ColorMissionPlayed` | `0x520` | Yes | ✅ |
+| `ColorMissionPlayedArrow` | `0x530` | Yes | ✅ |
+| `ColorMissionUnplayable` | `0x540` | Yes | ✅ |
+| `ColorPositionMarkerDelayedAbility` | `0x608` | No | ✅ |

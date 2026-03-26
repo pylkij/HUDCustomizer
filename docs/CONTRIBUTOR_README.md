@@ -27,12 +27,11 @@ This document is written for contributors and AI agents working on the codebase.
 |---|---|
 | `HUDCustomizer.cs` | Plugin entry point, lifecycle (`OnInitialize`, `OnTacticalReady`, `OnUpdate`), live element registry, Harmony patch declarations, shared helpers (`TryParseColor`, `ToColor`, `GetClasses`, `Debug`) |
 | `HUDConfig.cs` | All config data classes (`HUDCustomizerConfig`, `FontSettings`, `TileHighlightEntry`, `VisualizersConfig`, and all sub-configs), plus the `HUDConfig` static class which owns `ConfigDir`, `ConfigPath`, `JsonOpts`, and `BuildDefaultConfig()` |
-| `UnitCustomizer.cs` | Scale/transform-origin application to UnitHUD and EntityHUD elements; bar fill/preview/track colour overrides; badge tint; faction health bar colours via UIConfig |
+| `UnitCustomizer.cs` | Scale/transform-origin application to UnitHUD and EntityHUD elements; bar fill/preview/track colour overrides; badge tint; faction health bar colours via UIConfig; rarity colours (`ColorCommonRarity/Named`, `ColorUncommonRarity/Named`, `ColorRareRarity/Named`) and `ColorPositionMarkerDelayedAbility` via UIConfig |
 | `FontCustomizer.cs` | Font asset cache; per-HUD font/size/colour application via UIToolkit `Q()` queries; `Merge()` (Global to per-element override resolution) |
 | `TileCustomizer.cs` | Tile highlight colour overrides via `TileHighlighter.SetColorOverrides()` |
-| `USSCustomizer.cs` | USS global theme colour overrides via `UIConfig.Get()` fields |
-| `VisualizerCustomizer.cs` | Colour and parameter overrides for world-space 3D visualizers (`MovementVisualizer`, `TargetAimVisualizer`). Uses `FindObjectsOfType` and `MaterialPropertyBlock` rather than the UIElement registry — these are MonoBehaviours, not InterfaceElements. |
-| `VisualizerCustomizer.cs` | Colour and parameter overrides for world-space 3D visualizers (`MovementVisualizer`, `TargetAimVisualizer`). Uses `FindObjectsOfType` and `MaterialPropertyBlock` rather than the UIElement registry — these are MonoBehaviours, not InterfaceElements. |
+| `USSCustomizer.cs` | USS global theme colour overrides via `UIConfig.Get()` fields — 23 general USS fields plus 5 mission state fields (`ColorMissionPlayable/Locked/Played/PlayedArrow/Unplayable`) |
+| `VisualizerCustomizer.cs` | Colour and parameter overrides for world-space 3D visualizers (`MovementVisualizer`, `TargetAimVisualizer`, `LineOfSightVisualizer`). Uses `FindObjectsOfType` and `MaterialPropertyBlock` rather than the UIElement registry — these are MonoBehaviours, not InterfaceElements. |
 | `CombatFlyoverCustomizer.cs` | Bridge between HUDCustomizer's config system and the CombatFlyoverText plugin. Receives `CombatFlyoverSettings` from `LoadConfig()` and the hot-reload path via `Apply()`; exposes values to `CombatFlyoverPlugin` via public accessors; logs a summary line via `LogSummary()`. Has no Unity or game dependencies — pure config bridge. |
 | `Scans.cs` | Development-only discovery scans (element trees, font assets, UIConfig colour values, material properties). All scans are gated on `EnableScans = true` in config and fire at most once per session. |
 
@@ -55,12 +54,15 @@ HUDCustomizerPlugin (entry point)
 |     +-- TileCustomizer.TryApply()          <- singleton-based, no patch needed
 |     +-- USSCustomizer.TryApply()           <- singleton-based, no patch needed
 |     +-- UnitCustomizer.ApplyFactionHealthBarColors()
+|     +-- UnitCustomizer.ApplyRarityColors()
 |     +-- VisualizerCustomizer.TryApply()    <- FindObjectsOfType-based
+|     +-- VisualizerCustomizer.TryApplyLineOfSight(Config)
 |     +-- Scans.RunUIConfigScan()            <- dev only, gated on EnableScans
 |
 +-- OnUpdate (per frame)
 |     +-- [ReloadKey pressed] -> LoadConfig, InvalidateCache,
-|                               ReapplyToLiveElements, TryApply x4
+|                               ReapplyToLiveElements, TryApply x4,
+|                               ApplyRarityColors, TryApplyLineOfSight
 |
 +-- Harmony Patches (postfixes)
       +-- Each UIElement patch: Cast -> customiser.Apply / FontCustomizer.Apply -> Register
@@ -139,12 +141,13 @@ private void RegisterPatches(HarmonyLib.Harmony harmony)
     harmony.PatchAll(typeof(Patch_ObjectiveHUD_SetObjective));
     harmony.PatchAll(typeof(Patch_ObjectivesTracker_Init));
     harmony.PatchAll(typeof(Patch_MissionInfoPanel_Init));
-    harmony.PatchAll(typeof(Patch_UnitHUD_OnUpdate_Scan));
+    harmony.PatchAll(typeof(Patch_UnitHUD_SetOpacity));
     harmony.PatchAll(typeof(Patch_MovementHUD_SetDestination));
     harmony.PatchAll(typeof(Patch_BleedingWorldSpaceIcon_SetText));
-    harmony.PatchAll(typeof(Patch_WorldSpaceIcon_Update_Scan));
     harmony.PatchAll(typeof(Patch_MovementVisualizer_ShowPath));
     harmony.PatchAll(typeof(Patch_TargetAimVisualizer_UpdateAim));
+    harmony.PatchAll(typeof(LOSResizePatch));
+    harmony.PatchAll(typeof(Patch_DropdownText_Init));
     Debug("Harmony patches registered.");
 }
 ```
@@ -165,7 +168,9 @@ FontCustomizer.LogFontSummary();
 TileCustomizer.LogSummary();
 USSCustomizer.LogSummary();
 UnitCustomizer.LogFactionHealthBarSummary();
+UnitCustomizer.LogRarityColorSummary();
 VisualizerCustomizer.LogSummary();
+VisualizerCustomizer.LogLineOfSightSummary();
 LogSpentOpacitySummary();
 CombatFlyoverCustomizer.Apply(Config.CombatFlyover);
 CombatFlyoverCustomizer.LogSummary();
@@ -423,11 +428,11 @@ private static void QueryAndSet(VisualElement root, string elementName,
 | ObjectiveHUD | `Line` | *(not exposed)* | — | 14 | Scan only — separator line, not currently configurable |
 | MovementHUD | `CostLabel` | `MovementCostLabel` | — | 16 | Scan |
 | MovementHUD | `ActionLabel` | `MovementActionLabel` | — | 14 | Scan |
-| BleedingWorldSpaceIcon | `TextElement` | `BleedingIconText` | `m_TextElement` (Label) | — | Source only — scan not yet run |
+| BleedingWorldSpaceIcon | `TextElement` | `BleedingIconText` | `m_TextElement` (Label) | — | Scan confirmed — `QueryAndSet` replaced with `SetFont(el.Q("TextElement", (string)null), ...)` |
 
 **Note on `ObjectiveName` fontSize:** The scan shows 13, not 14. This differs from the config comment which says the default matches `ObjectiveState` (14). Do not change the config default — the scan value is authoritative.
 
-**Note on source field name vs UXML name:** UIToolkit UXML element names are set in the `.uxml` file, not derived from the C# field name. The `m_` prefix is stripped and camelCase becomes PascalCase: `m_NameLabel` → `ObjectiveName`, `m_MissionDurationLabel` → `MissionDuration`. The scan confirms these translations. For `BleedingWorldSpaceIcon.m_TextElement`, this pattern predicts the UXML name is `TextElement`, but scan confirmation is still needed.
+**Note on source field name vs UXML name:** UIToolkit UXML element names are set in the `.uxml` file, not derived from the C# field name. The `m_` prefix is stripped and camelCase becomes PascalCase: `m_NameLabel` → `ObjectiveName`, `m_MissionDurationLabel` → `MissionDuration`. The scan confirms these translations. For `BleedingWorldSpaceIcon.m_TextElement`, scan confirmed the UXML name is `TextElement` — consistent with this pattern.
 
 ---
 
@@ -457,7 +462,7 @@ private static Il2CppColorOverride Resolve(Il2CppColorOverride existing,
 
 Sets `Color` fields directly on `UIConfig.Get()`. These fields carry the `[UssColor]` attribute in the game source, meaning they map to USS custom properties that affect **all UI screens game-wide**. Fields without `[UssColor]` (rarity colours, health bar colours, `ColorPositionMarkerDelayedAbility`) are direct colour values used by specific systems — they can still be set via `UIConfig` but do not propagate through the USS property system.
 
-**Note:** The five mission state colour fields (`ColorMissionPlayable` etc.) carry `[UssColor]` — confirmed from `dump.cs`. Earlier documentation incorrectly listed them as non-USS direct values. Implement them via `USSCustomizer.TryApply()`, not via the `FactionHealthBarColors` pattern.
+**Note:** The five mission state colour fields (`ColorMissionPlayable` etc.) carry `[UssColor]` — confirmed from `dump.cs`. Earlier documentation incorrectly listed them as non-USS direct values. These are implemented via `USSCustomizer.TryApply()` alongside the existing 23 USS fields.
 
 **UIConfig field inventory with confirmed game defaults** (from scan log):
 
@@ -534,7 +539,7 @@ The aim line mesh is rebuilt every call to `UpdateAim()`. Material colours are a
 |---|---|---|---|
 | In-range line tint | `_UnlitColor` | `TargetAimVisualizer.InRangeColor` | Base colour tint of the line texture. Default: white (RGBA 1,1,1,1 = no tint) |
 | In-range bloom hue | `_EmissiveColor` (HDR) | `TargetAimVisualizer.InRangeEmissiveColor` + `EmissiveIntensity` | HDR emissive. R/G/B set hue via `TileHighlightEntry`. `EmissiveIntensity` float controls brightness multiplier separately. Game default intensity ≈ 15. |
-| Out-of-range colour | `OutOfRangeColor` field | `TargetAimVisualizer.OutOfRangeColor` | **WIP — does not currently take effect.** The field is written but the game's rendering path does not read it as expected. Source file required to determine correct patch point. |
+| Out-of-range colour | `_UnlitColor` (MPB) | `TargetAimVisualizer.OutOfRangeColor` | Applied via `MaterialPropertyBlock` in the `Patch_TargetAimVisualizer_UpdateAim` postfix. `UpdateAim()` hardcodes white for the out-of-range path and does not read the native `OutOfRangeColor` field (confirmed via Ghidra); the MPB write is the operative fix. |
 
 Float parameters set directly on the component instance (sentinel `-1` = leave unchanged):
 
@@ -548,9 +553,17 @@ Float parameters set directly on the component instance (sentinel `-1` = leave u
 
 **`_Color` property:** `HasProperty("_Color")` returns true on this shader but the property is a legacy compatibility stub — writes to it via `MaterialPropertyBlock` have no visible effect. Do not use it.
 
-#### LineOfSightVisualizer — implementable (original finding overturned)
+#### LineOfSightVisualizer — implemented ✅
 
-**Corrected finding:** The runtime scan incorrectly identified the components as Shapes library types. Ghidra decompilation of `Resize()` and `SetVisible()` confirmed the components are standard Unity `LineRenderer` instances. See Section 10 for full details and implementation guidance.
+**Confirmed finding (Ghidra + runtime verification):** Renderer type is `Il2CppShapes.Line` from `Il2CppShapesRuntime.dll` (namespace `Il2CppShapes`, class `Line`). An intermediate scan finding incorrectly identified the components as `UnityEngine.LineRenderer` — that was retracted. The correct finding is `Il2CppShapes.Line`.
+
+Pool structure: `List<Line[]> m_Lines`, 3 `Line` entries per group. Colour written only in `Resize(int)` via `ColorStart`/`ColorEnd`. `GetComponentsInChildren<T>` throws a fatal Il2CppInterop exception for this type — indexed `GetChild(i).GetComponent<Il2CppShapes.Line>()` traversal is required.
+
+| Component | Config slot | Notes |
+|---|---|---|
+| All `Il2CppShapes.Line` children | `LineOfSight.LineColor` | Fade pattern: index 0 = fade-in, index 1 = solid, index 2 = fade-out (i % 3). Re-applied after every `Resize(int)` via `LOSResizePatch`. |
+
+Implementation: `LOSResizePatch` (private method — resolved via `AccessTools.Method`), `VisualizerCustomizer.ApplyLineOfSightColor`, `VisualizerCustomizer.TryApplyLineOfSight`. Verified in log.
 
 ---
 
@@ -640,6 +653,7 @@ To remove a scan: delete the `_scanned` field and the `if (!_scanned)` line. If 
 |---|---|---|---|
 | `Patch_UnitHUD_SetActor` | `UnitHUD.SetActor` | — | Primary init — called when a unit is assigned to the HUD |
 | `Patch_UnitHUD_Show` | `UnitHUD.Show` | — | Re-applies in case the game resets inline styles on show |
+| `Patch_UnitHUD_SetOpacity` | `UnitHUD.SetOpacity` | — | Intercepts the spent-dim call (0.5); active-restore calls (1.0) pass through unmodified |
 | `Patch_EntityHUD_InitBars` | `EntityHUD.InitBars` | — | Bar init for non-unit entities; UnitHUD excluded by `TryCast` guard |
 | `Patch_ObjectiveHUD_SetObjective` | `ObjectiveHUD.SetObjective` | — | Per-objective init; fires once per objective instance |
 | `Patch_ObjectivesTracker_Init` | `ObjectivesTracker.Init` | — | Single init point for the tracker panel |
@@ -647,9 +661,9 @@ To remove a scan: delete the `_scanned` field and the `if (!_scanned)` line. If 
 | `Patch_MovementHUD_SetDestination` | `MovementHUD.SetDestination` | — | Fires on each movement target selection; re-applies because labels update each call |
 | `Patch_BleedingWorldSpaceIcon_SetText` | `BleedingWorldSpaceIcon.SetText` | — | Fires on creation and each text update; confirmed in source |
 | `Patch_MovementVisualizer_ShowPath` | `MovementVisualizer.ShowPath` | — | Re-applies colour after each path update, since the game resets colours from its own state |
-| `Patch_TargetAimVisualizer_UpdateAim` | `TargetAimVisualizer.UpdateAim` | — | Re-applies `MaterialPropertyBlock` after each mesh rebuild |
-| `Patch_UnitHUD_OnUpdate_Scan` | `UnitHUD.OnUpdate` | 155 | **Scan-only** — entire patch is temporary; DELETE when UnitHUD structure is confirmed |
-| `Patch_WorldSpaceIcon_Update_Scan` | `WorldSpaceIcon.Update` | 142 | **Scan-only** — catches `SimpleWorldSpaceIcon` which does not override `Update`; `BleedingWorldSpaceIcon` excluded by type name check because it overrides `Update` at slot 142; DELETE once confirmed |
+| `Patch_TargetAimVisualizer_UpdateAim` | `TargetAimVisualizer.UpdateAim` | — | Re-applies `MaterialPropertyBlock` (InRangeColor + OutOfRangeColor fix) after each mesh rebuild |
+| `LOSResizePatch` | `LineOfSightVisualizer.Resize(int)` | — | Private method resolved via `AccessTools.Method`; re-applies LOS line colour after each pool resize |
+| `Patch_DropdownText_Init` | `DropdownText.Init` | — | Fires once on creation with text already set; covers all tactical flyover text |
 
 Slot numbers are confirmed from game source files. Harmony resolves methods by name, not slot — the slots are documented here for virtual dispatch verification only.
 
@@ -698,7 +712,9 @@ if (Input.GetKeyDown(_reloadKey))
     TileCustomizer.TryApply();
     USSCustomizer.TryApply();
     UnitCustomizer.ApplyFactionHealthBarColors();
+    UnitCustomizer.ApplyRarityColors();
     VisualizerCustomizer.TryApply();
+    VisualizerCustomizer.TryApplyLineOfSight(Config);
     CombatFlyoverCustomizer.Apply(Config.CombatFlyover);
 }
 ```
@@ -707,10 +723,12 @@ if (Input.GetKeyDown(_reloadKey))
 2. `FontCustomizer.InvalidateCache()` — clears `_fontCache` so it is rebuilt on the next `Apply()` call.
 3. `ReapplyToLiveElements()` — iterates `_registry`, re-applies scale/colours/fonts to UIElements, prunes stale entries.
 4. `TileCustomizer.TryApply()` — re-applies tile highlight overrides to the `TileHighlighter` singleton.
-5. `USSCustomizer.TryApply()` — re-applies USS theme colour overrides to `UIConfig`.
+5. `USSCustomizer.TryApply()` — re-applies USS theme colour overrides to `UIConfig` (23 general + 5 mission state fields).
 6. `UnitCustomizer.ApplyFactionHealthBarColors()` — re-applies faction health bar colours to `UIConfig`.
-7. `VisualizerCustomizer.TryApply()` — re-discovers live visualizer instances via `FindObjectsOfType` and re-applies all colour and parameter overrides.
-8. `CombatFlyoverCustomizer.Apply(Config.CombatFlyover)` — pushes the freshly-loaded config to the CombatFlyoverText bridge. This second call (the first is inside `LoadConfig()`) is necessary because `LoadConfig()` also runs at startup where this `OnUpdate` block does not execute. Colour and timing changes take effect on the next flyover that fires after the reload.
+7. `UnitCustomizer.ApplyRarityColors()` — re-applies rarity colours and `ColorPositionMarkerDelayedAbility` to `UIConfig`.
+8. `VisualizerCustomizer.TryApply()` — re-discovers live visualizer instances via `FindObjectsOfType` and re-applies all colour and parameter overrides.
+9. `VisualizerCustomizer.TryApplyLineOfSight(Config)` — re-discovers live `LineOfSightVisualizer` instances and re-applies `LineColor`.
+10. `CombatFlyoverCustomizer.Apply(Config.CombatFlyover)` — pushes the freshly-loaded config to the CombatFlyoverText bridge. This second call (the first is inside `LoadConfig()`) is necessary because `LoadConfig()` also runs at startup where this `OnUpdate` block does not execute. Colour and timing changes take effect on the next flyover that fires after the reload.
 
 Hot-reload is only fully functional in tactical scenes. `TileHighlighter.Exists()` returns false outside tactical, so `TryApply()` silently no-ops. `VisualizerCustomizer.TryApply()` will find no instances outside tactical and silently returns. The config reload and log summary still fire regardless of scene.
 
@@ -736,7 +754,6 @@ private static bool CheckGate()
 | `RunUIConfigScan()` | `OnTacticalReady` | Dumps all `Color` fields from `UIConfig.Get()` | All fields now documented in Section 3 (USSCustomizer table). Delete when no longer needed. |
 | `RunFontScan(fontCache)` | `FontCustomizer.OnTacticalReady()` | Dumps IStyle font properties and all loaded `Font` asset names | Font list confirmed. Delete when no longer needed. |
 | `RunElementScan(element, label)` | Various patch postfixes | Dumps child element tree (max depth 5) and all text elements | Delete per call-site once that HUD's structure is confirmed |
-| `RunWorldSpaceIconScan(element, typeName)` | `Patch_WorldSpaceIcon_Update_Scan` | Discovers `WorldSpaceIcon` subtypes; fires once per concrete type via `HashSet<string>` | `SimpleWorldSpaceIcon` has no text or colour elements — confirmed from source. Entire scan patch can be deleted. |
 | `RunTargetAimMaterialScan(instance)` | `Patch_TargetAimVisualizer_UpdateAim` | Dumps all shader properties on the aim material's `MeshRenderer` | Confirmed: shader is `HDRP/Unlit`, colour property is `_UnlitColor`, emissive is `_EmissiveColor`. Delete once no longer needed. |
 
 ### Scan call-sites that carry DELETE comments
@@ -744,9 +761,9 @@ private static bool CheckGate()
 - `Patch_ObjectiveHUD_SetObjective` — scan call only; patch itself stays
 - `Patch_ObjectivesTracker_Init` — scan call only; patch itself stays
 - `Patch_MissionInfoPanel_Init` — scan call only; patch itself stays
-- `Patch_UnitHUD_OnUpdate_Scan` — **entire patch class** is scan-only; delete the whole class
-- `Patch_BleedingWorldSpaceIcon_SetText` — scan call only; patch itself stays
-- `Patch_WorldSpaceIcon_Update_Scan` — **entire patch class** is scan-only; delete the whole class
+- `Patch_UnitHUD_OnUpdate_Scan` — ✅ deleted (entire class was scan-only)
+- `Patch_BleedingWorldSpaceIcon_SetText` — scan call only; patch itself stays (element name confirmed, `QueryAndSet` replaced with direct `el.Q()`)
+- `Patch_WorldSpaceIcon_Update_Scan` — ✅ deleted (entire class was scan-only)
 - `Patch_TargetAimVisualizer_UpdateAim` — scan call only; the patch itself stays (it re-applies material colours)
 
 ---
@@ -992,96 +1009,58 @@ Add `YourCustomizer.LogSummary()` and call it from the summary block in `LoadCon
 
 ## 10. Known gaps and incomplete work
 
-### TargetAimVisualizer OutOfRangeColor — root cause confirmed, fix known
+### TargetAimVisualizer OutOfRangeColor — ✅ implemented
 
 **Root cause (confirmed via Ghidra decompilation of `GameAssembly.dll`):**
 
-`UpdateAim()` has two colour paths that both feed into a single `MaterialPropertyBlock.SetColor` call on `m_MeshRenderer` at the end of the function:
+`UpdateAim()` hardcodes `0x3f800000` (1.0f = white) for the out-of-range rendering path without reading the native `OutOfRangeColor` field at all. The field write in `ApplyTargetAimVisualizer()` succeeds but is immediately overwritten by the game on every `UpdateAim()` call.
 
-- **In-range path:** reads `OutOfRangeColor` (`this+0x30`) into local variables `uVar3/22/23/24` and passes them to `SetColor`. Despite the field name, this is the branch where the field is actually used.
-- **Out-of-range path (`bVar1 == 1`):** hardcodes `0x3f800000` (1.0f = white) directly into those same local variables, **never reading `OutOfRangeColor` at all**, then passes white to `SetColor`.
+**Fix applied:** `ReapplyTargetAimVisualizerColors()` (called from the `Patch_TargetAimVisualizer_UpdateAim` postfix) reads `_UnlitColor` back from the material after `UpdateAim()` runs to detect range state (white = in-range, as set by the game; non-white = already our override). When out-of-range, it writes `OutOfRangeColor` as `_UnlitColor` via `MaterialPropertyBlock` — after the game's write, so it is never overwritten until the next `UpdateAim()` call, at which point the postfix fires again.
 
-`SetLineMode()` does not touch colour at all — it only toggles mesh object visibility for indirect fire mode.
-
-`Generate2DMesh()` writes to `m_Colors` (`this+0x98`) but those vertex colours only control fade alpha at the line ends (RGB is always hardcoded `0xffffff`). Vertex colours are irrelevant to the hue problem.
-
-**Conclusion:** The field write in `ApplyTargetAimVisualizer()` succeeds, but `UpdateAim()` overwrites the `MaterialPropertyBlock` with white on every out-of-range frame, after our postfix has already run — so it is never visible. The existing `Patch_TargetAimVisualizer_UpdateAim` postfix fires after `UpdateAim()`, which is correct, but `ApplyTargetAimVisualizer()` currently only sets `_UnlitColor` and `_EmissiveColor` — it does not set the out-of-range colour via `MaterialPropertyBlock`.
-
-**Fix:** In `Patch_TargetAimVisualizer_UpdateAim`, after the game sets the `MaterialPropertyBlock` colour to white for out-of-range targets, apply `OutOfRangeColor` as `_UnlitColor` via `MaterialPropertyBlock` in the postfix. Since the postfix already has access to the `MeshRenderer` and builds a `MaterialPropertyBlock`, the fix is to set `_UnlitColor` to the configured `OutOfRangeColor` when the aim is out of range.
-
-**Detecting out-of-range in the postfix:** `bVar1` is a local variable in `UpdateAim()` and is not stored on the instance. The most reliable detection is to read the `_UnlitColor` back from the `MaterialPropertyBlock` after the game sets it — if it equals white (`RGBA 1,1,1,1`) and the user has configured a non-white `OutOfRangeColor`, apply the override. Alternatively, apply `OutOfRangeColor` unconditionally as `_UnlitColor` in the postfix regardless of range state, and remove the separate `instance.OutOfRangeColor` field write from `ApplyTargetAimVisualizer()` entirely, since the field is not the operative rendering path.
-
-**Files:** `VisualizerCustomizer.cs` → `ApplyTargetAimVisualizer()` and `Patch_TargetAimVisualizer_UpdateAim`.
+**Status:** Fully implemented and functional. Config slot: `Visualizers.TargetAimVisualizer.OutOfRangeColor`.
 
 ---
 
-### LineOfSightVisualizer — original finding overturned, implementable
+### LineOfSightVisualizer — ✅ implemented
 
-**Original finding (incorrect):** The runtime scan concluded the components were Shapes library types with no Il2CppInterop bindings. This was wrong on two counts — there is no Shapes library in this build, and the `Line` type in `m_Lines` is `Den.Tools.Splines.Line`, a pure spline geometry data class with no renderer.
+**Confirmed finding (Ghidra + dump.cs + runtime verification):** Renderer type is `Il2CppShapes.Line` from `Il2CppShapesRuntime.dll` (namespace `Il2CppShapes`, class `Line`). The original scan finding ("Shapes library types with no bindings") was incorrect — the DLL is present and bindings are generated. An intermediate finding that the components were `UnityEngine.LineRenderer` was also incorrect and has been retracted.
 
-**Corrected finding (from Ghidra decompilation of `Resize` and `SetVisible`, confirmed via dump.cs):**
+Pool structure: `List<Line[]> m_Lines`, 3 `Line` entries per group (fade-in, solid, fade-out). Colour is written only in `Resize(int)` via `ColorStart`/`ColorEnd` on each `Line`. `GetComponentsInChildren<T>` throws a fatal Il2CppInterop type-initialiser exception for this type — indexed `GetChild(i).GetComponent<Il2CppShapes.Line>()` traversal is required.
 
-`LineOfSightVisualizer` manages a pool of prefab instances via `m_Lines` (`List<Den.Tools.Splines.Line[]>`, `this+0x30`) and `m_Prefab` (`this+0x20`). The three non-Transform components on each `'LineOfSightLine(Clone)'` GameObject that the runtime scan failed to resolve are standard Unity `LineRenderer` components — not a third-party library. Il2CppInterop failed to resolve them at scan time due to the generic `Component` cast path used in the scan, not due to missing bindings.
+Fade pattern per group (i % 3): index 0 = fade-in (`ColorStart` alpha=0, `ColorEnd` alpha=A), index 1 = solid (both alpha=A), index 2 = fade-out (`ColorStart` alpha=A, `ColorEnd` alpha=0).
 
-Evidence from Ghidra:
-- `Resize()` calls `GetComponent<T>()` with type token `DAT_18399fe80`, iterates 3 components per instance, and calls colour setters on each.
-- The two colour setter functions (`FUN_181ca48c0` / `FUN_181ca4790`) both use type token `DAT_18396f1d0`, write a `Color` struct to field offsets `0x5c–0x68` and `0xa8–0xb4` respectively, then call a material property update and a mesh dirty function. These are the `LineRenderer.startColor` and `LineRenderer.endColor` property setters.
-- `SetVisible()` calls `GameObject.SetActive(bool)` on each line's GameObject — no colour access.
-
-**To implement:** Use `FindObjectsOfType<LineOfSightVisualizer>()`. For each instance, iterate the `m_Lines` list (Il2Cpp field access at `this+0x30`). Each `Line[]` array element corresponds to a pooled GameObject — get the `LineRenderer` component via `GetComponent<LineRenderer>()` and set `startColor` / `endColor`. Re-apply hook: patch `SetVisible(bool _visible)` as a postfix, since this is called each time the game activates LOS lines — same pattern as `Patch_MovementVisualizer_ShowPath`.
-
-**Status:** Scan infrastructure already removed. `VisualizerCustomizer.LogSummary()` and `README.md` incorrectly document this as unsupported — both need updating when implementation begins.
-
-**Files:** `VisualizerCustomizer.cs`, `HUDConfig.cs`, `HUDCustomizer.cs` (new patch on `LineOfSightVisualizer.SetVisible`).
+**Implementation:** `LOSResizePatch` postfixes `Resize(int)` (private — resolved via `AccessTools.Method`). `VisualizerCustomizer.ApplyLineOfSightColor` applies the fade pattern to all children. `VisualizerCustomizer.TryApplyLineOfSight` handles `TacticalReady` and hot-reload. `LogLineOfSightSummary` writes a summary line. Verified in log. Config slot: `Visualizers.LineOfSight.LineColor` (`TileHighlightEntry`).
 
 ---
 
-### BleedingWorldSpaceIcon — element name unconfirmed by scan
+### BleedingWorldSpaceIcon — ✅ element name confirmed
 
-**What exists:** `Patch_BleedingWorldSpaceIcon_SetText` fires correctly. `FontCustomizer.ApplyBleedingWorldSpaceIcon()` uses `QueryAndSet(el, "TextElement", ...)`.
-
-**Source analysis:** The field is declared as `private readonly Label m_TextElement`. In UIToolkit, the UXML element name is set in the `.uxml` file at `Tactical/Elements/bleeding_world_space_icon`. Following the same translation pattern used by all other confirmed elements (`m_NameLabel` → `ObjectiveName`, `m_MissionDurationLabel` → `MissionDuration`), the predicted UXML name is `TextElement`. The current `QueryAndSet` call will log a warning if this prediction is wrong — run with `EnableScans: true` to confirm.
-
-**What is missing:** Scan confirmation. Once confirmed, change `QueryAndSet` to `SetFont(el.Q("TextElement", (string)null), ...)` in `ApplyBleedingWorldSpaceIcon()`.
-
-**Files:** `FontCustomizer.cs` → `ApplyBleedingWorldSpaceIcon()`.
+**Confirmed:** UXML element name is `TextElement`, matching the predicted translation of `private readonly Label m_TextElement`. Scan confirmed. `FontCustomizer.ApplyBleedingWorldSpaceIcon()` updated from `QueryAndSet` to `SetFont(el.Q("TextElement", (string)null), ...)`. No further action needed.
 
 ---
 
-### SimpleWorldSpaceIcon — no customisable content
+### SimpleWorldSpaceIcon — ✅ confirmed, scan infrastructure deleted
 
 **Conclusion:** `SimpleWorldSpaceIcon` has no fields beyond its UXML path constant (`simple_world_space_icon`). It contains no `m_TextElement`, no icon reference, and no colour fields. There is nothing to customise.
 
-**Action required:** Delete `Patch_WorldSpaceIcon_Update_Scan` entirely (the whole class) and remove it from `RegisterPatches()`. Delete `Scans.RunWorldSpaceIconScan()` from `Scans.cs` if it has no other callers.
-
-**Files:** `HUDCustomizer.cs` → `Patch_WorldSpaceIcon_Update_Scan` and `RegisterPatches()`, `Scans.cs` → `RunWorldSpaceIconScan()`.
+`Patch_WorldSpaceIcon_Update_Scan`, its `RegisterPatches()` entry, and `Scans.RunWorldSpaceIconScan()` have all been deleted. No further action needed.
 
 ---
 
-### UIConfig rarity and mission colours — confirmed but not exposed
+### UIConfig rarity and mission colours — ✅ implemented
 
-**What exists:** All fields confirmed from `dump.cs` with exact default values (see UIConfig table in Section 3).
+**`[UssColor]` status (confirmed from `dump.cs`):**
+- Rarity fields (`ColorCommonRarity` etc.) — no `[UssColor]`. Implemented in `UnitCustomizer.ApplyRarityColors()` via the `FactionHealthBarColors` pattern.
+- Mission state fields (`ColorMissionPlayable` etc.) — yes `[UssColor]`. Implemented in `USSCustomizer.TryApply()` alongside the existing 23 USS fields.
+- `ColorPositionMarkerDelayedAbility` — no `[UssColor]`. Implemented in `UnitCustomizer.ApplyRarityColors()` alongside the rarity fields.
 
-**What is missing:** None of the rarity, mission state, or `ColorPositionMarkerDelayedAbility` fields are exposed in the config or set in any customiser.
-
-**`[UssColor]` status (corrected from earlier docs):**
-- Rarity fields (`ColorCommonRarity` etc.) — **no** `[UssColor]`. Direct colour values; follow the `FactionHealthBarColors` pattern (`UnitCustomizer.cs`).
-- Mission state fields (`ColorMissionPlayable` etc.) — **yes** `[UssColor]`, confirmed from `dump.cs`. Follow the `USSCustomizer.TryApply()` pattern, not `FactionHealthBarColors`.
-- `ColorPositionMarkerDelayedAbility` — **no** `[UssColor]`. Direct colour value; follow the `FactionHealthBarColors` pattern.
-
-**To implement:** Add a new config class (e.g. `RarityColorsConfig`) for the rarity and `ColorPositionMarkerDelayedAbility` fields, and add mission colour fields to `USSColorsConfig`. Apply rarity/delayed-ability fields in a new section of `UnitCustomizer.cs` following the `if (entry.Enabled) uiConfig.FieldName = ToColor(...)` pattern. Apply mission colour fields inside `USSCustomizer.TryApply()` alongside the existing USS fields.
-
-**Files:** `USSCustomizer.cs`, `UnitCustomizer.cs`, `HUDConfig.cs`.
+**Config classes:** `RarityColorsConfig` (holds 6 rarity slots + `ColorPositionMarkerDelayedAbility`), `USSColorsConfig` (extended with 5 mission state slots). Config section: `RarityColors` and `USSColors` respectively. All fields confirmed with game defaults from scan log (see UIConfig table in Section 3). Log summary: `UnitCustomizer.LogRarityColorSummary()` called from `LoadConfig()`.
 
 ---
 
-### UnitHUD element scan — ready to delete
+### UnitHUD element scan — ✅ deleted
 
-**Status:** The element tree is fully confirmed by scan log (see complete tree in Section 3). `Patch_UnitHUD_OnUpdate_Scan` has served its purpose.
-
-**Action required:** Delete the entire `Patch_UnitHUD_OnUpdate_Scan` class and remove it from `RegisterPatches()`.
-
-**Files:** `HUDCustomizer.cs` → `Patch_UnitHUD_OnUpdate_Scan` and `RegisterPatches()`.
+**Status:** Element tree fully confirmed by scan log (see complete tree in Section 3). `Patch_UnitHUD_OnUpdate_Scan` and its `RegisterPatches()` entry have been deleted. No further action needed.
 
 ---
 

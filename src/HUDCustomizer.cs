@@ -779,8 +779,11 @@ public partial class HUDCustomizerPlugin
     }
 
     // TargetAimVisualizer -- UpdateAim rebuilds the spline mesh each call,
-    // which may reset the MeshRenderer's MaterialPropertyBlock.  We re-apply
-    // the InRangeColor after each rebuild so it survives mesh updates.
+    // which resets the MeshRenderer's MaterialPropertyBlock.  We re-apply
+    // both InRangeColor and OutOfRangeColor via MPB after each rebuild.
+    // OutOfRangeColor root cause: UpdateAim() hardcodes white for the out-of-range
+    // path without reading the native OutOfRangeColor field (confirmed via Ghidra).
+    // The effective fix is the MPB write in ReapplyTargetAimVisualizerColors.
     // UpdateAim signature (from TargetAimVisualizer.cs):
     //   public void UpdateAim(Vector3 _origin, Vector3 _target, Skill _skill)
     [HarmonyPatch(typeof(Il2CppTargetAimVisualizer), nameof(Il2CppTargetAimVisualizer.UpdateAim))]
@@ -828,7 +831,7 @@ public partial class HUDCustomizerPlugin
     // (confirmed in BleedingWorldSpaceIcon.cs). Has m_TextElement (Label) and
     // m_Icon (VisualElement). UpdateAnimation runs a pulse every frame so position/
     // opacity may be overwritten, but text colour via style.color should survive.
-    // DELETE Scans call once element names are confirmed.
+    // Element name confirmed by scan: "TextElement". QueryAndSet replaced with SetFont(el.Q(...)).
     [HarmonyPatch(typeof(Il2CppBleedingWorldSpaceIcon), nameof(Il2CppBleedingWorldSpaceIcon.SetText))]
     private static class Patch_BleedingWorldSpaceIcon_SetText
     {

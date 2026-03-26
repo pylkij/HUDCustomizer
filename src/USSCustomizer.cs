@@ -17,7 +17,11 @@ using UnityEngine;
 // Each slot: { "Enabled": bool, "R": 0-255, "G": 0-255, "B": 0-255, "A": 0.0-1.0 }
 // Enabled = false leaves that slot at the game default.
 //
-// Confirmed field list from UIConfig.cs source file.
+// Confirmed field list from UIConfig.cs source file (28 slots total):
+//   23 general USS theme fields (ColorNormal .. ColorEmptySlotIcon)
+//    5 mission state fields: ColorMissionPlayable, ColorMissionLocked,
+//      ColorMissionPlayed, ColorMissionPlayedArrow, ColorMissionUnplayable
+//      (all carry [UssColor] -- confirmed in dump.cs; implemented here via TryApply())
 // Game default values confirmed by UIConfig scan.
 // =============================================================================
 public static class USSCustomizer

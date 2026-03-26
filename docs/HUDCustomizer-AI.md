@@ -20,8 +20,9 @@ If your work touches the CombatFlyoverText integration (`CombatFlyoverCustomizer
 
 - UnitHUD and EntityHUD: scale, bar colours (Hitpoints/Armor/Suppression fill/preview/track), badge tint — fully implemented, scan-confirmed
 - Faction health bar colours (infobox panel): fully implemented via UIConfig
+- Rarity colours (6 fields: `ColorCommonRarity/Named`, `ColorUncommonRarity/Named`, `ColorRareRarity/Named`) and `ColorPositionMarkerDelayedAbility`: fully implemented via `UnitCustomizer.ApplyRarityColors()` — non-USS, `FactionHealthBarColors` pattern. Config section: `RarityColors`.
 - Tile highlight colours: all 23 slots fully implemented
-- USS global theme colours: all 23 `[UssColor]` fields fully implemented
+- USS global theme colours: 28 fields fully implemented — 23 general `[UssColor]` fields plus 5 mission state fields (`ColorMissionPlayable`, `ColorMissionLocked`, `ColorMissionPlayed`, `ColorMissionPlayedArrow`, `ColorMissionUnplayable`) via `USSCustomizer.TryApply()`. Config section: `USSColors`.
 - Font overrides: all confirmed HUD types implemented (UnitHUD, EntityHUD, ObjectivesTracker, MissionInfoPanel, ObjectiveHUD, MovementHUD, BleedingWorldSpaceIcon, DropdownText)
 - Hot-reload: working for all implemented systems
 - Config I/O: working, with the following behaviour:
@@ -32,8 +33,7 @@ If your work touches the CombatFlyoverText integration (`CombatFlyoverCustomizer
   - On `OnInitialize`, if `Mods/HUDCustomizer/HUDCustomizer.json` is absent but a UserData backup exists, it is restored automatically before load
   - `HUDCustomizerConfig` carries a `ConfigVersion` integer (currently 1) for future targeted migrations
 - MovementVisualizer colours (ReachableColor, UnreachableColor): implemented
-- TargetAimVisualizer colours (_UnlitColor, _EmissiveColor) and float
-parameters: implemented
+- TargetAimVisualizer: `_UnlitColor` (InRangeColor), `_EmissiveColor` (InRangeEmissiveColor + EmissiveIntensity), float parameters, and `OutOfRangeColor` — all implemented. `OutOfRangeColor` is applied via `MaterialPropertyBlock` in the `Patch_TargetAimVisualizer_UpdateAim` postfix; `UpdateAim()` does not read the native field for out-of-range rendering (root cause confirmed via Ghidra), so the MPB write is the operative fix. Config slot: `Visualizers.TargetAimVisualizer.OutOfRangeColor`.
 - LineOfSightVisualizer line colour (LineColor): implemented — `Il2CppShapes.Line` components via indexed child traversal, `ColorStart`/`ColorEnd`, re-applied on every `Resize(int)` via `LOSResizePatch`. Config slot: `Visualizers.LineOfSight.LineColor`. Verified in log.
 - Spent unit HUD opacity (`SpentUnitHUDOpacity`): implemented via `Patch_UnitHUD_SetOpacity`
 
@@ -41,35 +41,7 @@ parameters: implemented
 
 These gaps can be implemented without any additional scan or source data. All required information is already confirmed.
 
-**1. SimpleWorldSpaceIcon scan patch — delete it**
-`Patch_WorldSpaceIcon_Update_Scan` and `Scans.RunWorldSpaceIconScan()` exist to discover `SimpleWorldSpaceIcon`'s structure. That class has been confirmed from source to have no text, colour, or icon fields — there is nothing to customise. The scan infrastructure can be deleted entirely.
-- Delete: `Patch_WorldSpaceIcon_Update_Scan` inner class in `HUDCustomizer.cs`
-- Delete: its `harmony.PatchAll(typeof(Patch_WorldSpaceIcon_Update_Scan))` line in `RegisterPatches()`
-- Delete: `RunWorldSpaceIconScan()` and `_worldSpaceIconScanned` from `Scans.cs`
-
-**2. UIConfig rarity colours — not exposed**
-Six rarity colour fields on `UIConfig` are confirmed from scan but not yet exposed in the config or set anywhere. They do not carry `[UssColor]` so they are direct colour values, not USS custom properties. Implementation follows the identical pattern as `FactionHealthBarColors` in `UnitCustomizer.cs`.
-
-Confirmed fields and defaults (from scan log):
-- `ColorCommonRarity`: 116, 108, 75
-- `ColorCommonRarityNamed`: 216, 232, 203
-- `ColorUncommonRarity`: 61, 117, 136
-- `ColorUncommonRarityNamed`: 185, 208, 214
-- `ColorRareRarity`: 189, 49, 49
-- `ColorRareRarityNamed`: 252, 241, 240
-
-**3. UIConfig mission colours — not exposed**
-Five mission state colour fields confirmed from scan, not exposed. Same pattern as above.
-
-Confirmed fields and defaults (from scan log):
-- `ColorMissionPlayable`: 168, 152, 103
-- `ColorMissionLocked`: 168, 152, 103
-- `ColorMissionPlayed`: 113, 102, 69
-- `ColorMissionPlayedArrow`: 75, 67, 44, A=0.50
-- `ColorMissionUnplayable`: 115, 115, 115
-- `ColorPositionMarkerDelayedAbility`: 0, 255, 255
-
-**4. ObjectivesTracker progress bar colours — not exposed**
+**1. ObjectivesTracker progress bar colours — not exposed**
 The tracker has a `ProgressBar` element with the same `Pickable > Fill / PreviewFill` structure as unit bars, confirmed by scan. The game sets fill colours from its own static constants (`FILL_COLOR`, `PREVIEW_FILL_COLOR`) — these can be overridden with inline styles using the same `ApplyBarColours()` pattern already in `UnitCustomizer.cs`. The bar element name is `"ProgressBar"`.
 
 Confirmed element structure from scan:
@@ -83,12 +55,14 @@ ProgressBar
     DarkLabelClip
 ```
 
-### What is incomplete — blocked on scan confirmation
+### What is incomplete — blocked on scan
 
 These cannot be fully implemented without running the game with `EnableScans: true` to confirm element names.
 
-**BleedingWorldSpaceIcon element name**
-`FontCustomizer.ApplyBleedingWorldSpaceIcon()` queries for `"TextElement"` using `QueryAndSet`. The source field is `private readonly Label m_TextElement`. Following the established naming pattern, `"TextElement"` is predicted to be correct but has not been scan-confirmed. The `QueryAndSet` call will log a warning at runtime if the name is wrong. Once confirmed, replace `QueryAndSet` with `SetFont(el.Q("TextElement", (string)null), ...)`.
+*(No items currently blocked on scan — all pending scan confirmations have been resolved.)*
+
+**BleedingWorldSpaceIcon element name — ✅ confirmed**
+UXML element name confirmed as `TextElement` by scan. `FontCustomizer.ApplyBleedingWorldSpaceIcon()` updated from `QueryAndSet` to `SetFont(el.Q("TextElement", (string)null), ...)`. Complete.
 
 **DropdownText — confirmed, implemented**
 Element structure confirmed by scan: `Container > Icon + Label`. `Label` is the text element (fontSize=14, USS class `font-headline`). Hook point: `Init(String _text, Sprite _icon)` — fires once on creation with text already set. Implemented as `Patch_DropdownText_Init` in `HUDCustomizer.cs`, config key `DropdownText` in `HUDCustomizerConfig`. Covers all flyover text shown above units (AP changes, suppression, skill effects such as Taking Command).
@@ -119,6 +93,7 @@ FontCustomizer.LogFontSummary();
 TileCustomizer.LogSummary();
 USSCustomizer.LogSummary();
 UnitCustomizer.LogFactionHealthBarSummary();
+UnitCustomizer.LogRarityColorSummary();
 VisualizerCustomizer.LogSummary();
 VisualizerCustomizer.LogLineOfSightSummary();
 HUDCustomizerPlugin.LogSpentOpacitySummary();
@@ -184,7 +159,7 @@ Check the scan log output in `CONTRIBUTOR_README.md` Section 3 for confirmed nam
 
 ## Runtime behaviour to know
 
-- Hot-reload fires `LoadConfig()` → `FontCustomizer.InvalidateCache()` → `ReapplyToLiveElements()` → `TileCustomizer.TryApply()` → `USSCustomizer.TryApply()` → `UnitCustomizer.ApplyFactionHealthBarColors()` → `VisualizerCustomizer.TryApply()` → `VisualizerCustomizer.TryApplyLineOfSight(Config)`. Any new system that needs hot-reload support must be called in this sequence.
+- Hot-reload fires `LoadConfig()` → `FontCustomizer.InvalidateCache()` → `ReapplyToLiveElements()` → `TileCustomizer.TryApply()` → `USSCustomizer.TryApply()` → `UnitCustomizer.ApplyFactionHealthBarColors()` → `UnitCustomizer.ApplyRarityColors()` → `VisualizerCustomizer.TryApply()` → `VisualizerCustomizer.TryApplyLineOfSight(Config)` → `CombatFlyoverCustomizer.Apply(Config.CombatFlyover)`. Any new system that needs hot-reload support must be called in this sequence.
 - `TileHighlighter.Exists()` returns false outside tactical scenes. `TileCustomizer.TryApply()` checks this and returns early silently if the singleton is unavailable. `USSCustomizer.TryApply()` and `UnitCustomizer.ApplyFactionHealthBarColors()` check `UIConfig.Get() != null` independently — UIConfig availability is not tied to TileHighlighter. Each `TryApply()` method guards its own singleton; none of them assume the others are available.
 - Elements are registered in `_registry` keyed by native pointer (`el.Pointer`). Entries with `Pointer == IntPtr.Zero` are destroyed native objects and are pruned during `ReapplyToLiveElements()`. Do not hold references to `Il2CppInterfaceElement` objects outside the registry.
 - `DebugLogging: true` in the config enables per-element `[DBG]` log lines via `HUDCustomizerPlugin.Debug(...)`. Always wrap verbose output in `Debug()` rather than `Log.Msg()`.
