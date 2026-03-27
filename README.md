@@ -37,6 +37,8 @@ Press **F8** while in a tactical mission to reload the config instantly. The key
 
 Hot-reload only works during a tactical mission. Changes to tile highlights, fonts, colours (including USS theme colours, rarity colours, and faction health bar colours), scaling, visualizer settings, and spent unit opacity all apply immediately when you press the key. You do not need to restart the game or reload the mission.
 
+USS theme colours (`USSColors` section) are also applied automatically each time the strategy map loads — you do not need to press the reload key to see them there.
+
 ---
 
 ## What you can change
@@ -166,21 +168,35 @@ Each entry takes three values:
 
 ### Tactical UI element styles
 
-Two additional config sections control new tactical-only style surfaces:
+Two additional config sections control tint and style overrides for tactical UI elements.
 
-- `ObjectivesTrackerProgressBar`:
-  - `FillColor`
-  - `PreviewColor`
-  - `TrackColor`
-- `TacticalUIStyles`:
-  - `SkillBarButton` (icon/hover/selected tints + preview opacity)
-  - `BaseSkillBarItemSlot` (background/item/cross tints)
-  - `SimpleSkillBarButton` (hover tint)
-  - `TurnOrderFactionSlot` (inactive mask/icon + selected tints)
-  - `UnitsTurnBarSlot` (overlay/selected/portrait tints)
-  - `SelectedUnitPanel` (portrait/header tints)
-  - `TacticalUnitInfoStat` (icon tint)
-  - `DelayedAbilityHUD` (progress tint)
+#### Objectives tracker progress bar (`ObjectivesTrackerProgressBar`)
+
+Controls the fill, preview, and track colours of the progress bar in the objectives tracker panel. Uses the same string format as the unit HUD bar colours:
+
+- `FillColor` — the filled portion of the bar
+- `PreviewColor` — the brief highlight shown when the value changes
+- `TrackColor` — the bar background (visible where the bar is empty)
+
+Set any value to `""` to leave it unchanged.
+
+#### Tactical element tints (`TacticalUIStyles`)
+
+Controls image tints on specific tactical UI elements. Each tint slot uses the `{ "Enabled": false, "R": ..., "G": ..., "B": ..., "A": ... }` format — the same as tile highlights. Set `"Enabled": true` to apply.
+
+Tints are multiplicative: white (`255, 255, 255`) leaves the original image unchanged. Other colours shift the hue or darken the image.
+
+| Section | Element | Tint slots |
+|---|---|---|
+| `SkillBarButton` | Skill slot buttons in the skill bar | `SkillIconTint` — skill icon image<br>`SelectedOverlayTint` — overlay when skill is active/selected<br>`HoverOverlayTint` — overlay on mouse hover |
+| `SkillBarButton` | — | `PreviewOpacity` — opacity of the button during preview state. Float: `0.0` (invisible) to `1.0` (fully opaque). `-1` = leave unchanged. |
+| `BaseSkillBarItemSlot` | Equipment slots in the skill bar (weapon and accessory) | `BackgroundTint` — slot background<br>`ItemIconTint` — equipped item icon<br>`CrossTint` — X overlay shown when the slot is unusable |
+| `SimpleSkillBarButton` | Simple action buttons (e.g. overwatch, wait) | `HoverTint` — overlay on mouse hover |
+| `TurnOrderFactionSlot` | Faction icons in the turn order panel | `InactiveMaskTint` — overlay when the faction has no remaining turns<br>`SelectedTint` — highlight on the active faction<br>`InactiveIconTint` — faction icon when inactive |
+| `UnitsTurnBarSlot` | Unit portrait slots in the turn order bar | `OverlayTint` — animated overlay (game default: grey)<br>`SelectedTint` — highlight on the selected unit's slot<br>`PortraitTint` — unit portrait image |
+| `SelectedUnitPanel` | Unit info panel shown when a unit is selected | `PortraitTint` — unit portrait image<br>`HeaderTint` — header background |
+| `TacticalUnitInfoStat` | Individual stat rows in the selected unit panel | `IconTint` — stat icon |
+| `DelayedAbilityHUD` | HUD element for delayed off-map abilities | `ProgressTint` — progress ring/bar fill |
 
 ### Tile highlight colours
 

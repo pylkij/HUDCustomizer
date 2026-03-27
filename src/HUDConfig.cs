@@ -9,7 +9,7 @@ using System.Text.Json;
 //   HUDCustomizerConfig          -- top-level config object (deserialized from JSON)
 //   FontSettings                 -- font/size/color override for a single element group
 //   TileHighlightEntry           -- single enabled/RGBA slot (shared by Tile, USS, Faction)
-//   TacticalUIStylesConfig       -- scan-driven tactical UI tint/opacity overrides
+//   TacticalUIStylesConfig       -- tactical UI element tint/opacity overrides
 //   TileHighlightsConfig         -- all tile highlight colour slots
 //   USSColorsConfig              -- all USS global theme colour slots
 //   FactionHealthBarColorsConfig -- faction-specific health bar colour slots
@@ -90,7 +90,10 @@ public class HUDCustomizerConfig
     public RarityColorsConfig RarityColors { get; set; } = new();
 
     // Font settings -----------------------------------------------------------
-    // Each FontSettings entry has a Font name and a Size (0 = unchanged).
+    // Each FontSettings entry has Font, Size, and Color fields.
+    // Font:  asset name string (see list below); "" = unchanged.
+    // Size:  float font size; 0 = unchanged.
+    // Color: "R,G,B" or "R,G,B,A" (R/G/B = 0-255, A = 0.0-1.0); "" = unchanged.
     // Global is applied to all text elements first; per-element entries override it.
     // Available fonts confirmed in scan:
     //   Jura-Regular, Jura-Bold, OCRAStd, Inconsolata-SemiBold, NotInter-Regular
@@ -158,7 +161,7 @@ public class HUDCustomizerConfig
     // as UnitHUD/EntityHUD bars; string format matches existing bar colour settings).
     public ObjectivesTrackerProgressBarColorsConfig ObjectivesTrackerProgressBar { get; set; } = new();
 
-    // Tactical UI element tint/style overrides for systems under active implementation.
+    // Tactical UI element tint/style overrides (skill bar, turn order, unit panel, etc.)
     public TacticalUIStylesConfig TacticalUIStyles { get; set; } = new();
 
     // Tile highlight colours
@@ -214,7 +217,8 @@ public class SkillBarButtonStyleConfig
     public TileHighlightEntry SkillIconTint       { get; set; } = new();
     public TileHighlightEntry SelectedOverlayTint { get; set; } = new();
     public TileHighlightEntry HoverOverlayTint    { get; set; } = new();
-    // -1 = leave game animation-driven preview opacity unchanged.
+    // PreviewOpacity: opacity of the skill button during preview/hover state.
+    // Range: 0.0 (invisible) to 1.0 (fully opaque). -1 = leave unchanged (game default).
     public float PreviewOpacity { get; set; } = -1f;
 }
 
@@ -550,6 +554,8 @@ public static class HUDConfig
   // ==========================================================================
   // HUDCustomizer config  (Mods/HUDCustomizer/HUDCustomizer.json)
   // Hot-reload: press ReloadKey in a tactical scene to apply changes instantly.
+  // USS colours (USSColors section) also apply automatically when the strategy
+  // map loads -- no hot-reload needed for those in the strategy scene.
   // ==========================================================================
 
   // Schema version -- do not edit. Used by the mod to track config migrations.
@@ -636,11 +642,14 @@ public static class HUDConfig
     ""Rare"":          { ""Enabled"": false, ""R"": 189, ""G"": 49,  ""B"": 49,  ""A"": 1.0 },  // default: RGB(189, 49, 49)
     ""RareNamed"":     { ""Enabled"": false, ""R"": 252, ""G"": 241, ""B"": 240, ""A"": 1.0 },  // default: RGB(252, 241, 240)
     // Misc UIConfig colour
-    ""ColorPositionMarkerDelayedAbility"": { ""Enabled"": false, ""R"": 0, ""G"": 255, ""B"": 255, ""A"": 1.0 }  // default: unknown (cyan placeholder)
+    ""ColorPositionMarkerDelayedAbility"": { ""Enabled"": false, ""R"": 0, ""G"": 255, ""B"": 255, ""A"": 1.0 }  // default: RGB(0, 255, 255) -- confirmed from UIConfig scan
   },
 
   // --- Font -----------------------------------------------------------------
-  // Each section has ""Font"" (asset name, """" = unchanged) and ""Size"" (float, 0 = unchanged).
+  // Each entry has three fields:
+  //   ""Font""  -- asset name from the list below; """" = leave font unchanged.
+  //   ""Size""  -- font size as a float; 0 = leave size unchanged.
+  //   ""Color"" -- text colour as ""R, G, B"" or ""R, G, B, A"" (R/G/B = 0-255, A = 0.0-1.0); """" = leave unchanged.
   // Global is applied first; per-element entries override it where set.
   //
   // Available fonts confirmed in scan:
@@ -652,6 +661,7 @@ public static class HUDConfig
   //   Tracker headline / Mission labels:        12
   //   Objective description:                    10
   //   Points / RewardPoints:                    16
+  //   (Newer tactical entries below lack confirmed size defaults.)
   ""Global"":                { ""Font"": """", ""Size"": 0, ""Color"": """" },
 
   // UnitHUD / EntityHUD
@@ -718,43 +728,55 @@ public static class HUDConfig
     ""TrackColor"": """"
   },
 
-  // Tactical UI style/tint overrides (scan-driven additions in progress).
-  // Each tint slot uses { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 }.
-  // Set Enabled=true to apply.
+  // --- Tactical UI element tint / style overrides ---------------------------
+  // Tint slots use { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 }.
+  // Set ""Enabled"": true to apply the tint. R/G/B: 0-255. A: 0.0-1.0.
+  // Tints are applied as unityBackgroundImageTintColor (multiplied against the
+  // original image -- white = no change, other colours shift the hue/brightness).
   ""TacticalUIStyles"": {
+    // SkillBarButton: the skill slot buttons in the skill bar at the bottom of the screen.
     ""SkillBarButton"": {
-      ""SkillIconTint"":       { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 },
-      ""SelectedOverlayTint"": { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 },
-      ""HoverOverlayTint"":    { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 },
+      ""SkillIconTint"":       { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 },  // skill icon image tint
+      ""SelectedOverlayTint"": { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 },  // overlay shown when skill is selected/active
+      ""HoverOverlayTint"":    { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 },  // overlay shown on mouse hover
+      // PreviewOpacity: opacity of the button during the preview/hover state.
+      // Range: 0.0 (invisible) to 1.0 (fully opaque). -1 = leave unchanged (game default).
       ""PreviewOpacity"":      -1.0
     },
+    // BaseSkillBarItemSlot: equipment slots in the skill bar (weapon and accessory slots).
     ""BaseSkillBarItemSlot"": {
-      ""BackgroundTint"": { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 },
-      ""ItemIconTint"":   { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 },
-      ""CrossTint"":      { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 }
+      ""BackgroundTint"": { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 },  // slot background tint
+      ""ItemIconTint"":   { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 },  // equipped item icon tint
+      ""CrossTint"":      { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 }   // X overlay shown when slot is unusable
     },
+    // SimpleSkillBarButton: simple action buttons in the skill bar (e.g. overwatch, wait).
     ""SimpleSkillBarButton"": {
-      ""HoverTint"":      { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 }
+      ""HoverTint"":      { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 }   // overlay shown on mouse hover
     },
+    // TurnOrderFactionSlot: faction icons in the turn order panel at the top of the screen.
     ""TurnOrderFactionSlot"": {
-      ""InactiveMaskTint"": { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 },
-      ""SelectedTint"":     { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 },
-      ""InactiveIconTint"": { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 }
+      ""InactiveMaskTint"": { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 },  // overlay shown when faction has no remaining turns
+      ""SelectedTint"":     { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 },  // highlight on the currently active faction
+      ""InactiveIconTint"": { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 }   // faction icon tint when inactive
     },
+    // UnitsTurnBarSlot: individual unit portrait slots in the turn order bar.
     ""UnitsTurnBarSlot"": {
-      ""OverlayTint"":      { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 },
-      ""SelectedTint"":     { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 },
-      ""PortraitTint"":     { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 }
+      ""OverlayTint"":      { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 },  // animated overlay tint (game default: grey)
+      ""SelectedTint"":     { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 },  // highlight on the selected unit's slot
+      ""PortraitTint"":     { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 }   // unit portrait image tint
     },
+    // SelectedUnitPanel: the unit info panel shown on the right when a unit is selected.
     ""SelectedUnitPanel"": {
-      ""PortraitTint"":     { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 },
-      ""HeaderTint"":       { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 }
+      ""PortraitTint"":     { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 },  // unit portrait image tint
+      ""HeaderTint"":       { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 }   // header background tint
     },
+    // TacticalUnitInfoStat: individual stat rows in the selected unit panel.
     ""TacticalUnitInfoStat"": {
-      ""IconTint"":         { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 }
+      ""IconTint"":         { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 }   // stat icon tint
     },
+    // DelayedAbilityHUD: the HUD element shown for delayed off-map abilities.
     ""DelayedAbilityHUD"": {
-      ""ProgressTint"":     { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 }
+      ""ProgressTint"":     { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 }   // progress ring/bar fill tint
     }
   },
 
@@ -849,9 +871,9 @@ public static class HUDConfig
    //   UnreachableColor -- path segments beyond AP range (dimmed/red by default)
    // TargetAimVisualizer: colours and params for the 3D spline drawn when aiming.
    //   OutOfRangeColor       -- colour when target is out of range
-   //   InRangeColor          -- in-range line colour (applied via MaterialPropertyBlock)
-   //                           NOTE: requires shader property ""_Color""; may have no
-   //                           effect if the shader uses a different property name.
+   //   InRangeColor          -- sets shader property '_UnlitColor' on the HDRP/Unlit aim
+   //                           material. Controls the base tint of the line texture.
+   //                           Default: white (no tint). Confirmed working.
    //   AnimationScrollSpeed  -- UV scroll speed of animated texture (-1 = unchanged)
    //   Width                 -- world-space line width in metres (-1 = unchanged)
    //   MinimumHeight         -- minimum arc height above terrain (-1 = unchanged)
