@@ -19,13 +19,13 @@ If your work touches the CombatFlyoverText integration (`CombatFlyoverCustomizer
 ### What is complete and working
 
 - UnitHUD and EntityHUD: scale, bar colours (Hitpoints/Armor/Suppression fill/preview/track), badge tint - fully implemented, scan-confirmed
-- StructureHUD: independent `StructureHUDScale` implemented via `Patch_StructureHUD_Init` + `ReapplyToLiveElements()` case
+- StructureHUD: inherits EntityHUD. Has its own dedicated patch (`Patch_StructureHUD_Init` on `StructureHUD.Init`) and independent `StructureHUDScale` config entry applied via `UnitCustomizer.Apply(el, Config.StructureHUDScale)`. Bar colours and fonts come from the EntityHUD pattern automatically.
 - Faction health bar colours (infobox panel): fully implemented via UIConfig
 - Rarity colours (6 fields: `ColorCommonRarity/Named`, `ColorUncommonRarity/Named`, `ColorRareRarity/Named`) and `ColorPositionMarkerDelayedAbility`: fully implemented via `UnitCustomizer.ApplyRarityColors()` - non-USS, `FactionHealthBarColors` pattern. Config section: `RarityColors`.
 - Tile highlight colours: all 23 slots fully implemented
-- USS global theme colours: 28 fields fully implemented - 23 general `[UssColor]` fields plus 5 mission state fields (`ColorMissionPlayable`, `ColorMissionLocked`, `ColorMissionPlayed`, `ColorMissionPlayedArrow`, `ColorMissionUnplayable`) via `USSCustomizer.TryApply()`. Config section: `USSColors`.
-- Tactical element style overrides: implemented via `TacticalElementCustomizer.cs` (`TacticalUIStyles` + `ObjectivesTrackerProgressBar`)
-- Font overrides: tactical expansion implemented (adds `SkillBarButton`, `BaseSkillBarItemSlot` weapon label path, `SimpleSkillBarButton`, `SelectedUnitPanel`, `TacticalUnitInfoStat`, `TurnOrderPanel`, `StatusEffectIcon` on top of existing HUD targets)
+- USS global theme colours: 28 fields fully implemented - 23 general `[UssColor]` fields plus 5 mission state fields (`ColorMissionPlayable`, `ColorMissionLocked`, `ColorMissionPlayed`, `ColorMissionPlayedArrow`, `ColorMissionUnplayable`) via `USSCustomizer.TryApply()`. Config section: `USSColors`. Also applied in the Strategy scene via `OnSceneLoaded` → `ApplyUSSAfterDelay(0.5f)`.
+- Tactical element tint/style overrides: implemented via `TacticalElementCustomizer.cs` (`TacticalUIStyles` config section, covers `SkillBarButton`, `BaseSkillBarItemSlot`, `SimpleSkillBarButton`, `TurnOrderFactionSlot`, `UnitsTurnBarSlot`, `SelectedUnitPanel`, `TacticalUnitInfoStat`, `DelayedAbilityHUD`) plus `ObjectivesTrackerProgressBar`.
+- Font overrides: tactical expansion implemented (adds `SkillBarButton`, `BaseSkillBarItemSlot` weapon label path, `SimpleSkillBarButton`, `SelectedUnitPanel`, `TacticalUnitInfoStat`, `TurnOrderPanel`, `StatusEffectIcon`, `DropdownText`, `StructureHUD` on top of existing HUD targets)
 - Hot-reload: working for all implemented systems
 - Config I/O: working, with the following behaviour:
   - On first run, `HUDCustomizer.json` is generated from `BuildDefaultConfig()`
@@ -45,28 +45,8 @@ No mandatory implementation gaps remain for the current tactical expansion set.
 
 Actionable item is validation-only:
 
-**1. DelayedAbilityHUD world-marker finalisation**
+**DelayedAbilityHUD world-marker finalisation**
 `SetAbility` marker scan evidence exists. `SetProgressPct` marker-phase evidence did not fire in the last capture. If this needs re-validation, re-introduce temporary scan hooks and capture a focused log run.
-
-### What is incomplete - blocked on scan
-
-No implementation blockers are currently pending on selector scans.
-Temporary tactical scan scaffolding has been removed after cleanup.
-
-**BleedingWorldSpaceIcon element name - confirmed**
-UXML element name confirmed as `TextElement` by scan. `FontCustomizer.ApplyBleedingWorldSpaceIcon()` updated from `QueryAndSet` to `SetFont(el.Q("TextElement", (string)null), ...)`. Complete.
-
-**DropdownText - confirmed, implemented**
-Element structure confirmed by scan: `Container > Icon + Label`. `Label` is the text element (fontSize=14, USS class `font-headline`). Hook point: `Init(String _text, Sprite _icon)` - fires once on creation with text already set. Implemented as `Patch_DropdownText_Init` in `HUDCustomizer.cs`, config key `DropdownText` in `HUDCustomizerConfig`. Covers all flyover text shown above units (AP changes, suppression, skill effects such as Taking Command).
-
-**LineOfSightVisualizer - implemented**
-Renderer type: `Il2CppShapes.Line` from `Il2CppShapesRuntime.dll` (namespace `Il2CppShapes`, class `Line`). The original scan finding ("no named Shapes bindings") was incorrect - the DLL is present and bindings are generated. An intermediate finding that the components were `UnityEngine.LineRenderer` was also incorrect and retracted.
-
-Pool structure: `List<Line[]> m_Lines`, 3 `Line` entries per group (fade-in, solid, fade-out). Colour is written only in `Resize(int)` via `ColorStart`/`ColorEnd` - never in `Update()` or `SetVisible()`. `GetComponentsInChildren<T>` throws a fatal Il2CppInterop type-initialiser exception for `Il2CppShapes.Line` - use indexed `GetChild(i).GetComponent<Il2CppShapes.Line>()` traversal only.
-
-Fade pattern per group (i % 3): index 0 = fade-in (`ColorStart` alpha=0, `ColorEnd` alpha=A), index 1 = solid (both alpha=A), index 2 = fade-out (`ColorStart` alpha=A, `ColorEnd` alpha=0).
-
-Implementation: `LOSResizePatch` postfixes `Resize(int)` (private - requires `AccessTools.Method`). `VisualizerCustomizer.ApplyLineOfSightColor` applies the fade pattern. `TryApplyLineOfSight` handles `TacticalReady` and hot-reload. `LogLineOfSightSummary` writes a summary line. Config: `Visualizers.LineOfSight.LineColor` (`TileHighlightEntry`). Do not write `ColorMode` - it is inherited from the prefab.
 
 ---
 
@@ -76,6 +56,11 @@ Implementation: `LOSResizePatch` postfixes `Resize(int)` (private - requires `Ac
 |---|---|
 | Add a new UIConfig colour group | `HUDConfig.cs` (config class + `BuildDefaultConfig()`), `USSCustomizer.cs` or `UnitCustomizer.cs` (apply + log), `HUDCustomizer.cs` (`LoadConfig()` summary call) |
 | Increment config schema version | `HUDConfig.cs` (`ConfigVersion` default in `HUDCustomizerConfig` + value in `BuildDefaultConfig()`); add migration logic to `LoadConfig()` in `HUDCustomizer.cs` if needed |
+| Add a new per-element HUD tint/style | `HUDConfig.cs`, `TacticalElementCustomizer.cs` (new case + apply method + `LogSummary()` entry), `HUDCustomizer.cs` (patch + `RegisterPatches()` + `ReapplyToLiveElements()` passthrough) |
+| Add a new font target | `HUDConfig.cs` (`FontSettings` property + `BuildDefaultConfig()` entry), `FontCustomizer.cs` (`Apply()` switch + new `ApplyYourHUD()` + `LogFontSummary()`), `HUDCustomizer.cs` (patch class + `RegisterPatches()` + `ReapplyToLiveElements()` case if scale applies) |
+| Add a new per-element HUD colour (background, not tint) | `HUDConfig.cs`, relevant customiser (for unit-bar-style: `UnitCustomizer.cs`; for tactical UI: `TacticalElementCustomizer.cs`), `HUDCustomizer.cs` (patch + `ReapplyToLiveElements()` + summary call) |
+| Delete a scan patch | `HUDCustomizer.cs` (patch class + `RegisterPatches()`), `Scans.cs` (scan method + flag, if no other callers) |
+| Add a new scan | `Scans.cs` (flag + method), `HUDCustomizer.cs` (call site in patch or lifecycle) |
 
 **`LoadConfig()` summary call sequence - insert new calls at the end of this block:**
 
@@ -95,11 +80,7 @@ CombatFlyoverCustomizer.LogSummary();
 // insert YourCustomiser.LogSummary() here
 ```
 
-This block appears in `LoadConfig()` in `HUDCustomizer.cs` immediately after the `Log.Msg(...)` call that prints scale, origin, and reload key. Every system that applies settings must have a corresponding summary call here so config load output is complete and verifiable in the log.
-| Add a new per-element HUD colour | `HUDConfig.cs`, relevant customiser `.cs` (for tactical UI: `TacticalElementCustomizer.cs`), `HUDCustomizer.cs` (patch + `ReapplyToLiveElements()` + summary call) |
-| Add a new font target | `HUDConfig.cs` (`FontSettings` property + `BuildDefaultConfig()` entry), `FontCustomizer.cs` (`Apply()` switch + new `ApplyYourHUD()` + `LogFontSummary()`), `HUDCustomizer.cs` (patch class + `RegisterPatches()` + `ReapplyToLiveElements()` case) |
-| Delete a scan patch | `HUDCustomizer.cs` (patch class + `RegisterPatches()`), `Scans.cs` (scan method + flag, if no other callers) |
-| Add a new scan | `Scans.cs` (flag + method), `HUDCustomizer.cs` (call site in patch or lifecycle) |
+This block appears in `LoadConfig()` in `HUDCustomizer.cs` immediately after the `Log.Msg(...)` call that prints version, scale, origin, and reload key. Every system that applies settings must have a corresponding summary call here so config load output is complete and verifiable in the log.
 
 ---
 
@@ -115,7 +96,7 @@ The Il2Cpp-wrapped `IEnumerable<string>` returned by `GetClasses()` does not imp
 Always write `element.Q("ElementName", (string)null)`. The single-argument overload may not resolve correctly through the Il2Cpp binding. This produces no compile error but silently returns null at runtime.
 
 **4. Do not call `ToColor()` without checking `Enabled` first.**
-`ToColor(entry, label)` does not check `entry.Enabled`. Always guard: `if (entry.Enabled) field = ToColor(entry, label)`.
+`ToColor(entry, label)` does not check `entry.Enabled`. Always guard: `if (entry.Enabled) field = ToColor(entry, label)`. `TacticalElementCustomizer.SetTint()` handles this guard internally - it is safe to call without a prior check.
 
 **5. Do not use `is`, `as`, or direct inheritance assumptions between Il2Cpp types.**
 Use `.Cast<T>()` when you are certain of the type (throws on failure). Use `.TryCast<T>()` for conditional checks (returns null on failure). Do not assume C# inheritance relationships match native inheritance.
@@ -132,8 +113,11 @@ Use `harmony.PatchAll(typeof(YourPatchClass))` - never `harmony.PatchAll()` with
 **Adding a new colour that comes from UIConfig:**
 Use the `TileHighlightEntry` type in `HUDConfig.cs` and the `if (entry.Enabled) uiConfig.Field = ToColor(entry, label)` pattern. Call `TryApply()` from both `OnTacticalReady` and the hot-reload block in `OnUpdate`. See `USSCustomizer.cs` and `UnitCustomizer.ApplyFactionHealthBarColors()` for the two existing patterns.
 
-**Adding a new colour that is set directly on a VisualElement:**
-Use the string colour convention (`"R,G,B"` or `"R,G,B,A"`, empty = unchanged) and `TryParseColor` + `ve.style.backgroundColor` or `ve.style.unityBackgroundImageTintColor`. Register the element in `_registry` via `Register(el, "HudType")` so it is re-applied on hot-reload. Add a `case "HudType":` to `ReapplyToLiveElements()`. See `TacticalElementCustomizer.cs` and `UnitCustomizer.ApplyBarColours()` for the pattern.
+**Adding a new tint override on a VisualElement:**
+Use `TileHighlightEntry` in `HUDConfig.cs` and add a case to `TacticalElementCustomizer`. Call `SetTint(root.Q("ElementName", (string)null), cfg.YourEntry, "label")` - `SetTint` checks `Enabled` and skips silently if false. Register the element in `_registry` via `Register(el, "HudType")` and ensure `TacticalElementCustomizer.Apply(el, hudType)` is called from both the patch postfix and `ReapplyToLiveElements()`.
+
+**Adding a new background colour override on a VisualElement:**
+Use the string colour convention (`"R,G,B"` or `"R,G,B,A"`, empty = unchanged) and `TryParseColor` + `ve.style.backgroundColor`. Add the apply logic to `TacticalElementCustomizer` (or `UnitCustomizer` for bar-style elements). Register the element in `_registry` and ensure re-application on hot-reload.
 
 **Discovering an unknown class type responsible for a UI element:**
 If the target class is not known, enumerate all types in the relevant namespace at `TacticalReady` using a throwaway mod (`TacticalTypeEnumeratorPlugin` pattern). Once candidate type names are identified, dump their public instance methods using `GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)` - this reveals the correct hook method without guessing. `Update` is a valid last resort but fires before the element has content; prefer a named method that receives the display data (e.g. `Init`, `SetText`, `Show`). The full `Menace.UI.Tactical` type inventory from scan is: `BaseHUD`, `BaseSkillBarItemSlot`, `BleedingWorldSpaceIcon`, `DelayedAbilityHUD`, `DropdownText`, `EntityHUD`, `ISkillBarElement`, `MissionInfoPanel`, `MovementHUD`, `ObjectiveHUD`, `ObjectivesTracker`, `OffmapAbilityButton`, `SelectedUnitPanel`, `SimpleSkillBarButton`, `SimpleWorldSpaceIcon`, `SkillBar`, `SkillBarButton`, `SkillBarSlotAccessory`, `SkillBarSlotWeapon`, `SkillUsesBar`, `StatusEffectIcon`, `StructureHUD`, `TacticalBarkPanel`, `TacticalUnitInfoStat`, `TurnOrderFactionSlot`, `TurnOrderPanel`, `UnitBadge`, `UnitHUD`, `UnitsTurnBar`, `UnitsTurnBarSlot`, `WorldSpaceIcon`.
@@ -142,21 +126,22 @@ If the target class is not known, enumerate all types in the relevant namespace 
 Add a `FontSettings` property to `HUDCustomizerConfig`. Add a `case "HudType":` to `FontCustomizer.Apply()` and implement `ApplyYourHUD()`. Use `SetFont(el.Q(name, (string)null), Merge(cfg.Global, cfg.YourEntry), label)` for scan-confirmed element names, or `QueryAndSet(el, name, Merge(...), label)` for unconfirmed names. Add entries to `LogFontSummary()`.
 
 **Overriding a value the game sets on a state transition (not every frame):**
-Do not patch `OnUpdate` and read back the written value to detect state - `OnUpdate` may delegate to a private setter that only fires on transitions, and reading `style.*` or `resolvedStyle.*` after your own override will not reliably reflect the game's intent on subsequent calls. Instead, identify the private setter (e.g. `SetOpacity(float _opacity)`) from the game source and patch that directly. Use the method's parameter to detect the game's intent (`_opacity == 0.5f` = spent), and write your override value unconditionally when the parameter matches. For hot-reload, detect currently-affected elements by checking that their current inline style is not the game's "unaffected" value (e.g. `!Approximately(el.style.opacity.value, 1.0f)`).
+Do not patch `OnUpdate` and read back the written value to detect state. Instead, identify the private setter (e.g. `SetOpacity(float _opacity)`) from the game source and patch that directly. Use the method's parameter to detect the game's intent (`_opacity == 0.5f` = spent), and write your override value unconditionally when the parameter matches. For hot-reload, detect currently-affected elements by checking their current inline style against the game's "unaffected" value (e.g. `!Approximately(el.style.opacity.value, 1.0f)`).
 
 **Removing a scan patch that is no longer needed:**
 Delete the inner class. Remove its `harmony.PatchAll(typeof(...))` line from `RegisterPatches()`. If the corresponding `Scans` method has no other callers, delete it and its `_scanned` flag from `Scans.cs`.
 
 **Unsure whether a field/element name is correct:**
-Check the scan log output in `CONTRIBUTOR_README.md` for confirmed names and RGBA values. If not listed there, it is unconfirmed - use `QueryAndSet` rather than `SetFont(el.Q(...))` so a warning is logged at runtime if the name is wrong.
+Check the scan log output in `CONTRIBUTOR_README.md` (Section 10) for confirmed names and RGBA values. If not listed there, it is unconfirmed - use `QueryAndSet` rather than `SetFont(el.Q(...))` so a warning is logged at runtime if the name is wrong.
 
 ---
 
 ## Runtime behaviour to know
 
 - Hot-reload fires `LoadConfig()` -> `FontCustomizer.InvalidateCache()` -> `ReapplyToLiveElements()` -> `TileCustomizer.TryApply()` -> `USSCustomizer.TryApply()` -> `UnitCustomizer.ApplyFactionHealthBarColors()` -> `UnitCustomizer.ApplyRarityColors()` -> `VisualizerCustomizer.TryApply()` -> `VisualizerCustomizer.TryApplyLineOfSight(Config)` -> `CombatFlyoverCustomizer.Apply(Config.CombatFlyover)`. Any new system that needs hot-reload support must be called in this sequence.
-- `ReapplyToLiveElements()` applies systems in this order per live registry element: `UnitCustomizer` (where applicable) -> `TacticalElementCustomizer` -> `FontCustomizer`.
-- `TileHighlighter.Exists()` returns false outside tactical scenes. `TileCustomizer.TryApply()` checks this and returns early silently if the singleton is unavailable. `USSCustomizer.TryApply()` and `UnitCustomizer.ApplyFactionHealthBarColors()` check `UIConfig.Get() != null` independently - UIConfig availability is not tied to TileHighlighter. Each `TryApply()` method guards its own singleton; none of them assume the others are available.
+- `ReapplyToLiveElements()` applies systems in this order per live registry element: `UnitCustomizer` (where applicable, i.e. UnitHUD/EntityHUD/StructureHUD) -> `TacticalElementCustomizer` -> `FontCustomizer`. This order must be preserved when adding new cases.
+- `TileHighlighter.Exists()` returns false outside tactical scenes. `TileCustomizer.TryApply()` checks this and returns early silently. `USSCustomizer.TryApply()` and `UnitCustomizer.ApplyFactionHealthBarColors()` check `UIConfig.Get() != null` independently. Each `TryApply()` guards its own singleton; none assume the others are available.
+- USS colours are additionally applied in the Strategy scene: `OnSceneLoaded` detects `sceneName == "Strategy"` and starts `ApplyUSSAfterDelay(0.5f)`, which calls `USSCustomizer.TryApply()` after a 0.5 second delay. If you add a new USS-like system that should apply outside tactical, follow this pattern.
 - Elements are registered in `_registry` keyed by native pointer (`el.Pointer`). Entries with `Pointer == IntPtr.Zero` are destroyed native objects and are pruned during `ReapplyToLiveElements()`. Do not hold references to `Il2CppInterfaceElement` objects outside the registry.
 - `DebugLogging: true` in the config enables per-element `[DBG]` log lines via `HUDCustomizerPlugin.Debug(...)`. Always wrap verbose output in `Debug()` rather than `Log.Msg()`.
 

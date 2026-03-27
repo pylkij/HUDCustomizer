@@ -17,7 +17,7 @@ This document is written for contributors and AI agents working on the codebase.
 7. [The scan system](#7-the-scan-system)
 8. [Il2Cpp and UIToolkit notes](#8-il2cpp-and-uitoolkit-notes)
 9. [Adding a new customisable system](#9-adding-a-new-customisable-system)
-10. [Known gaps and incomplete work](#10-known-gaps-and-incomplete-work)
+10. [Runtime scan status](#10-runtime-scan-status)
 
 ---
 
@@ -32,6 +32,7 @@ This document is written for contributors and AI agents working on the codebase.
 | `TileCustomizer.cs` | Tile highlight colour overrides via `TileHighlighter.SetColorOverrides()` |
 | `USSCustomizer.cs` | USS global theme colour overrides via `UIConfig.Get()` fields - 23 general USS fields plus 5 mission state fields (`ColorMissionPlayable/Locked/Played/PlayedArrow/Unplayable`) |
 | `VisualizerCustomizer.cs` | Colour and parameter overrides for world-space 3D visualizers (`MovementVisualizer`, `TargetAimVisualizer`, `LineOfSightVisualizer`). Uses `FindObjectsOfType` and `MaterialPropertyBlock` rather than the UIElement registry - these are MonoBehaviours, not InterfaceElements. |
+| `TacticalElementCustomizer.cs` | Non-font tint and style overrides for tactical UI elements introduced in Tier 2-4 (`SkillBarButton`, `BaseSkillBarItemSlot`, `SimpleSkillBarButton`, `TurnOrderFactionSlot`, `UnitsTurnBarSlot`, `SelectedUnitPanel`, `TacticalUnitInfoStat`, `DelayedAbilityHUD`, and the `ObjectivesTracker` progress bar). Dispatches on `hudType` string like `FontCustomizer`. Uses `TileHighlightEntry` for tints and string colours for background overrides. |
 | `CombatFlyoverCustomizer.cs` | Bridge between HUDCustomizer's config system and the CombatFlyoverText plugin. Receives `CombatFlyoverSettings` from `LoadConfig()` and the hot-reload path via `Apply()`; exposes values to `CombatFlyoverPlugin` via public accessors; logs a summary line via `LogSummary()`. Has no Unity or game dependencies - pure config bridge. |
 | `Scans.cs` | Development-only discovery scans (element trees, font assets, UIConfig colour values, material properties). All scans are gated on `EnableScans = true` in config and fire at most once per session. |
 
@@ -45,9 +46,14 @@ This document is written for contributors and AI agents working on the codebase.
 HUDCustomizerPlugin (entry point)
 |
 +-- OnInitialize
-|     +-- LoadConfig()          <- reads HUDCustomizer.json via HUDConfig
+|     +-- RestoreConfigFromUserData()  <- restores UserData backup if mod-dir config missing
+|     +-- LoadConfig()                 <- reads HUDCustomizer.json via HUDConfig
 |     +-- GameState.TacticalReady += OnTacticalReady
-|     +-- RegisterPatches()     <- registers all Harmony postfixes
+|     +-- RegisterPatches()            <- registers all Harmony postfixes
+|
++-- OnSceneLoaded
+|     +-- [sceneName == "Strategy"] -> MelonCoroutines.Start(ApplyUSSAfterDelay(0.5f))
+|           ApplyUSSAfterDelay: waits 0.5 s then calls USSCustomizer.TryApply()
 |
 +-- OnTacticalReady
 |     +-- FontCustomizer.OnTacticalReady()   <- builds font asset cache
@@ -62,10 +68,12 @@ HUDCustomizerPlugin (entry point)
 +-- OnUpdate (per frame)
 |     +-- [ReloadKey pressed] -> LoadConfig, InvalidateCache,
 |                               ReapplyToLiveElements, TryApply x4,
-|                               ApplyRarityColors, TryApplyLineOfSight
+|                               ApplyRarityColors, TryApplyLineOfSight,
+|                               CombatFlyoverCustomizer.Apply
 |
 +-- Harmony Patches (postfixes)
-      +-- Each UIElement patch: Cast -> customiser.Apply / FontCustomizer.Apply -> Register
+      +-- Each UIElement patch: Cast -> TacticalElementCustomizer.Apply /
+      |                                  FontCustomizer.Apply -> Register
       +-- Each MonoBehaviour patch: apply directly to __instance fields / MaterialPropertyBlock
 ```
 
@@ -108,9 +116,23 @@ internal static void ReapplyToLiveElements()
             switch (hudType)
             {
                 case "UnitHUD":
-                    UnitCustomizer.Apply(el, Config.UnitHUDScale); break;
+                    UnitCustomizer.Apply(el, Config.UnitHUDScale);
+                    // Re-apply spent opacity immediately on hot-reload; SetOpacity
+                    // is transition-only so the patch won't fire until the next turn change.
+                    if (Config.SpentUnitHUDOpacity >= 0f &&
+                        !Mathf.Approximately(el.style.opacity.value, 1.0f))
+                    {
+                        el.style.opacity = new StyleFloat(
+                            Mathf.Clamp(Config.SpentUnitHUDOpacity, 0f, 1f));
+                    }
+                    break;
                 case "EntityHUD":
                     UnitCustomizer.Apply(el, Config.EntityHUDScale); break;
+                case "StructureHUD":
+                    UnitCustomizer.Apply(el, Config.StructureHUDScale); break;
+                case "DropdownText":
+                    // No bar or badge -- FontCustomizer handles everything.
+                    break;
                 default:
                     // Non-unit HUD types (ObjectivesTracker, MissionInfoPanel,
                     // ObjectiveHUD, etc.) have no bars or badge -- UnitCustomizer
@@ -118,6 +140,7 @@ internal static void ReapplyToLiveElements()
                     break;
             }
 
+            TacticalElementCustomizer.Apply(el, hudType);
             FontCustomizer.Apply(el, hudType);
             count++;
         }
@@ -148,6 +171,22 @@ private void RegisterPatches(HarmonyLib.Harmony harmony)
     harmony.PatchAll(typeof(Patch_TargetAimVisualizer_UpdateAim));
     harmony.PatchAll(typeof(LOSResizePatch));
     harmony.PatchAll(typeof(Patch_DropdownText_Init));
+    harmony.PatchAll(typeof(Patch_StructureHUD_Init));
+    // Permanent tactical routing patches
+    harmony.PatchAll(typeof(Patch_SkillBarButton_Init));
+    harmony.PatchAll(typeof(Patch_SkillBarButton_Show));
+    harmony.PatchAll(typeof(Patch_BaseSkillBarItemSlot_Init));
+    harmony.PatchAll(typeof(Patch_SimpleSkillBarButton_SetText));
+    harmony.PatchAll(typeof(Patch_TurnOrderFactionSlot_Init));
+    harmony.PatchAll(typeof(Patch_UnitsTurnBarSlot_Init));
+    harmony.PatchAll(typeof(Patch_UnitsTurnBarSlot_SetActor));
+    harmony.PatchAll(typeof(Patch_SelectedUnitPanel_SetActor));
+    harmony.PatchAll(typeof(Patch_TacticalUnitInfoStat_Init));
+    harmony.PatchAll(typeof(Patch_TurnOrderPanel_UpdateFactions));
+    harmony.PatchAll(typeof(Patch_StatusEffectIcon_InitSkillTemplate));
+    harmony.PatchAll(typeof(Patch_StatusEffectIcon_InitSkill));
+    harmony.PatchAll(typeof(Patch_DelayedAbilityHUD_SetAbility));
+    harmony.PatchAll(typeof(Patch_DelayedAbilityHUD_SetProgressPct));
     Debug("Harmony patches registered.");
 }
 ```
@@ -157,7 +196,7 @@ private void RegisterPatches(HarmonyLib.Harmony harmony)
 When adding a new customiser, add its `LogSummary()` call at the end of this block:
 
 ```csharp
-Log.Msg($"Config loaded.  " +
+Log.Msg($"Config loaded (v{Config.ConfigVersion}).  " +
         $"UnitScale={Config.UnitHUDScale:F2}  " +
         $"EntityScale={Config.EntityHUDScale:F2}  " +
         $"Origin=({Config.TransformOriginX:F0}%,{Config.TransformOriginY:F0}%)  " +
@@ -169,6 +208,7 @@ TileCustomizer.LogSummary();
 USSCustomizer.LogSummary();
 UnitCustomizer.LogFactionHealthBarSummary();
 UnitCustomizer.LogRarityColorSummary();
+TacticalElementCustomizer.LogSummary();
 VisualizerCustomizer.LogSummary();
 VisualizerCustomizer.LogLineOfSightSummary();
 LogSpentOpacitySummary();
@@ -323,6 +363,46 @@ public static void ApplyFactionHealthBarColors()
 }
 ```
 
+#### Rarity colours and ColorPositionMarkerDelayedAbility
+
+Rarity fields (`ColorCommonRarity` etc.) and `ColorPositionMarkerDelayedAbility` do not carry the `[UssColor]` attribute - confirmed from `dump.cs`. They are direct colour values used by specific systems and do not propagate through the USS property system. These are implemented in `UnitCustomizer.ApplyRarityColors()` via the same `FactionHealthBarColors` pattern (direct field write on `UIConfig.Get()`). Config class: `RarityColorsConfig` (6 rarity slots + `ColorPositionMarkerDelayedAbility`). Log summary: `UnitCustomizer.LogRarityColorSummary()`.
+
+**ObjectiveHUD and MissionInfoPanel** are text-only elements confirmed from source and scan. `ObjectiveHUD` has no bars, backgrounds, or tintable elements beyond icon sprites (which use USS class colouring, not inline style tints). `MissionInfoPanel` is two label elements inside a plain container. The font-only implementation for both is correct and complete unless icon tinting or background colours are explicitly desired in the future.
+
+**ObjectivesTracker progress bar** (`ProgressBar > Pickable > Fill/PreviewFill`) is configurable via `ObjectivesTrackerProgressBar` in config and applied through `TacticalElementCustomizer.ApplyObjectivesTrackerProgressBar(...)`. Applied from `Patch_ObjectivesTracker_Init` and re-applied from `ReapplyToLiveElements()`.
+
+**StructureHUD** inherits `EntityHUD`. It has its own dedicated patch (`Patch_StructureHUD_Init` on `StructureHUD.Init`) and its own `StructureHUDScale` config entry, applied via `UnitCustomizer.Apply(el, Config.StructureHUDScale)`. Bar colours and fonts from the `EntityHUD` pattern apply automatically. The `Patch_EntityHUD_InitBars` guard (`TryCast<UnitHUD>`) does not exclude `StructureHUD`, so if `StructureHUD` also inherits `InitBars`, verify in-game whether both patches fire to avoid double-application.
+
+---
+
+### TacticalElementCustomizer (`TacticalElementCustomizer.cs`)
+
+Handles non-font tint and style overrides for the tactical UI element types introduced in Tier 2-4. Called from patch postfixes and from `ReapplyToLiveElements()` — always in the order `UnitCustomizer` → `TacticalElementCustomizer` → `FontCustomizer`.
+
+Dispatches on `hudType` using a switch, identical in structure to `FontCustomizer.Apply()`. When adding a new tactical element type that needs tint or background overrides, add a `case` here and implement the corresponding private `ApplyYourType()` method.
+
+Uses two colour conventions:
+- **`TileHighlightEntry` tints** (via `SetTint`) for `style.unityBackgroundImageTintColor` — icon tints, overlay tints. Caller checks `entry.Enabled`; `SetTint` skips disabled entries silently.
+- **String background colours** (via `SetBackground`) for `style.backgroundColor` — progress bar tracks, fills. Uses `TryParseColor`; empty string = leave unchanged.
+
+**Handled types and their config paths:**
+
+| hudType | Config path | Applied fields |
+|---|---|---|
+| `SkillBarButton` | `TacticalUIStyles.SkillBarButton` | `SkillIcon` tint, `SelectedOverlay` tint, `HoverOverlay` tint, `PreviewOpacity` (float, -1 = unchanged) |
+| `BaseSkillBarItemSlot` | `TacticalUIStyles.BaseSkillBarItemSlot` | `Background` tint, `ItemIcon` tint, `Cross` tint |
+| `SimpleSkillBarButton` | `TacticalUIStyles.SimpleSkillBarButton` | `Hover` tint |
+| `TurnOrderFactionSlot` | `TacticalUIStyles.TurnOrderFactionSlot` | `InactiveMask` tint, `Selected` tint, `InactiveIcon` tint |
+| `UnitsTurnBarSlot` | `TacticalUIStyles.UnitsTurnBarSlot` | `Overlay` tint, `Selected` tint, `Portrait` tint |
+| `SelectedUnitPanel` | `TacticalUIStyles.SelectedUnitPanel` | `Portrait` tint, `UnitWindowHeader` tint |
+| `TacticalUnitInfoStat` | `TacticalUIStyles.TacticalUnitInfoStat` | `Icon` tint |
+| `DelayedAbilityHUD` | `TacticalUIStyles.DelayedAbilityHUD` | `Progress` tint |
+| `ObjectivesTracker` | `ObjectivesTrackerProgressBar` | `ProgressBar > Pickable` bg, `Fill` bg, `PreviewFill` bg |
+
+`TurnOrderPanel` and `StatusEffectIcon` route through `TacticalElementCustomizer.Apply()` but have no cases currently — they fall through to the default (no-op). Font-only for now.
+
+`LogSummary()` counts all enabled overrides across all types and logs a single summary line.
+
 ---
 
 ### FontCustomizer (`FontCustomizer.cs`)
@@ -462,7 +542,7 @@ private static Il2CppColorOverride Resolve(Il2CppColorOverride existing,
 
 Sets `Color` fields directly on `UIConfig.Get()`. These fields carry the `[UssColor]` attribute in the game source, meaning they map to USS custom properties that affect **all UI screens game-wide**. Fields without `[UssColor]` (rarity colours, health bar colours, `ColorPositionMarkerDelayedAbility`) are direct colour values used by specific systems - they can still be set via `UIConfig` but do not propagate through the USS property system.
 
-**Note:** The five mission state colour fields (`ColorMissionPlayable` etc.) carry `[UssColor]` - confirmed from `dump.cs`. Earlier documentation incorrectly listed them as non-USS direct values. These are implemented via `USSCustomizer.TryApply()` alongside the existing 23 USS fields.
+The five mission state colour fields (`ColorMissionPlayable` etc.) carry `[UssColor]` - confirmed from `dump.cs`. These are implemented via `USSCustomizer.TryApply()` alongside the existing 23 USS fields. Config class: `USSColorsConfig` (extended with 5 mission state slots).
 
 **UIConfig field inventory with confirmed game defaults** (from scan log):
 
@@ -539,7 +619,7 @@ The aim line mesh is rebuilt every call to `UpdateAim()`. Material colours are a
 |---|---|---|---|
 | In-range line tint | `_UnlitColor` | `TargetAimVisualizer.InRangeColor` | Base colour tint of the line texture. Default: white (RGBA 1,1,1,1 = no tint) |
 | In-range bloom hue | `_EmissiveColor` (HDR) | `TargetAimVisualizer.InRangeEmissiveColor` + `EmissiveIntensity` | HDR emissive. R/G/B set hue via `TileHighlightEntry`. `EmissiveIntensity` float controls brightness multiplier separately. Game default intensity ≈ 15. |
-| Out-of-range colour | `_UnlitColor` (MPB) | `TargetAimVisualizer.OutOfRangeColor` | Applied via `MaterialPropertyBlock` in the `Patch_TargetAimVisualizer_UpdateAim` postfix. `UpdateAim()` hardcodes white for the out-of-range path and does not read the native `OutOfRangeColor` field (confirmed via Ghidra); the MPB write is the operative fix. |
+| Out-of-range colour | `_UnlitColor` (MPB) | `TargetAimVisualizer.OutOfRangeColor` | Applied via `MaterialPropertyBlock` in the `Patch_TargetAimVisualizer_UpdateAim` postfix. `UpdateAim()` hardcodes white (`0x3f800000`) for the out-of-range path and does not read the native `OutOfRangeColor` field (confirmed via Ghidra decompilation of `GameAssembly.dll`). The fix: `ReapplyTargetAimVisualizerColors()` reads `_UnlitColor` back from the material after `UpdateAim()` runs to detect range state, then writes `OutOfRangeColor` as `_UnlitColor` via MPB after the game's write. The postfix fires again on the next `UpdateAim()` call. The `_Color` property returns `HasProperty("_Color") = true` on this shader but is a legacy compatibility stub - writes via MPB have no visible effect; do not use it. |
 
 Float parameters set directly on the component instance (sentinel `-1` = leave unchanged):
 
@@ -551,25 +631,49 @@ Float parameters set directly on the component instance (sentinel `-1` = leave u
 | `MaximumHeight` | `TargetAimVisualizer.MaximumHeight` |
 | `DistanceToHeightScale` | `TargetAimVisualizer.DistanceToHeightScale` |
 
-**`_Color` property:** `HasProperty("_Color")` returns true on this shader but the property is a legacy compatibility stub - writes to it via `MaterialPropertyBlock` have no visible effect. Do not use it.
+#### LineOfSightVisualizer - confirmed working
 
-#### LineOfSightVisualizer - implemented done
+**Renderer type:** `Il2CppShapes.Line` from `Il2CppShapesRuntime.dll` (namespace `Il2CppShapes`, class `Line`) - confirmed via Ghidra, `dump.cs`, and runtime verification. Earlier scan findings that identified the components as `UnityEngine.LineRenderer` or "Shapes library types with no bindings" were both incorrect and have been retracted. The DLL is present and bindings are generated.
 
-**Confirmed finding (Ghidra + runtime verification):** Renderer type is `Il2CppShapes.Line` from `Il2CppShapesRuntime.dll` (namespace `Il2CppShapes`, class `Line`). An intermediate scan finding incorrectly identified the components as `UnityEngine.LineRenderer` - that was retracted. The correct finding is `Il2CppShapes.Line`.
+Pool structure: `List<Line[]> m_Lines`, 3 `Line` entries per group. Colour is written only in `Resize(int)` via `ColorStart`/`ColorEnd` on each `Line`. `GetComponentsInChildren<T>` throws a fatal Il2CppInterop type-initialiser exception for this type - indexed `GetChild(i).GetComponent<Il2CppShapes.Line>()` traversal is required.
 
-Pool structure: `List<Line[]> m_Lines`, 3 `Line` entries per group. Colour written only in `Resize(int)` via `ColorStart`/`ColorEnd`. `GetComponentsInChildren<T>` throws a fatal Il2CppInterop exception for this type - indexed `GetChild(i).GetComponent<Il2CppShapes.Line>()` traversal is required.
+Fade pattern per group (i % 3): index 0 = fade-in (`ColorStart` alpha=0, `ColorEnd` alpha=A), index 1 = solid (both alpha=A), index 2 = fade-out (`ColorStart` alpha=A, `ColorEnd` alpha=0).
 
 | Component | Config slot | Notes |
 |---|---|---|
 | All `Il2CppShapes.Line` children | `LineOfSight.LineColor` | Fade pattern: index 0 = fade-in, index 1 = solid, index 2 = fade-out (i % 3). Re-applied after every `Resize(int)` via `LOSResizePatch`. |
 
-Implementation: `LOSResizePatch` (private method - resolved via `AccessTools.Method`), `VisualizerCustomizer.ApplyLineOfSightColor`, `VisualizerCustomizer.TryApplyLineOfSight`. Verified in log.
+Implementation: `LOSResizePatch` (private method - resolved via `AccessTools.Method`), `VisualizerCustomizer.ApplyLineOfSightColor`, `VisualizerCustomizer.TryApplyLineOfSight`. Verified in log. Config slot: `Visualizers.LineOfSight.LineColor` (`TileHighlightEntry`).
+
+---
+
+### Types confirmed as not customisable
+
+| Type | Reason |
+|---|---|
+| `SkillUsesBar` | Notch colours driven by USS class only; no inline override surface |
+| `UnitBadge` | `IDisposable` wrapper; badge tint already covered by `ContainedBadge` in `UnitHUD` element tree |
+| `TacticalBarkPanel` | Fields are audio visualisation scaffolding only (float arrays, waveform columns); no text or colour fields |
+| `OffmapAbilityButton` | Button image and state colours entirely USS-driven via `SelectableImageButton` base; no direct surface |
+| `UnitsTurnBar` | Layout container wrapper only; no Color or Label fields |
+| `BaseHUD` | Positional/rendering flags only; no Color or Label fields |
+| `WorldSpaceIcon` | Confirmed empty - no fields at all; consistent with `SimpleWorldSpaceIcon` findings |
+| `SimpleWorldSpaceIcon` | No fields beyond UXML path constant (`simple_world_space_icon`); no `m_TextElement`, no icon reference, no colour fields. Scan infrastructure deleted. |
+| `SkillBar` | Layout container wrapper only; no Color or Label fields |
+| `ISkillBarElement` | Interface definition only |
 
 ---
 
 ## 4. Patching strategy
 
 All patches are Harmony `Postfix` patches registered in `RegisterPatches()`. Each is a private static inner class of `HUDCustomizerPlugin`.
+
+### Patching strategy key
+
+| Pattern | When to use |
+|---|---|
+| *Registry pattern* | Type inherits `InterfaceElement` / `InteractiveElement` / `BaseHUD`. Use Harmony postfix + `Register(el, "TypeName")` + `ReapplyToLiveElements()` case. |
+| *Standalone* | Type does not inherit a UIElement base. Use direct field access via the patch `__instance`; do not register. |
 
 ### The standard patch pattern - full source
 
@@ -655,15 +759,30 @@ To remove a scan: delete the `_scanned` field and the `if (!_scanned)` line. If 
 | `Patch_UnitHUD_Show` | `UnitHUD.Show` | - | Re-applies in case the game resets inline styles on show |
 | `Patch_UnitHUD_SetOpacity` | `UnitHUD.SetOpacity` | - | Intercepts the spent-dim call (0.5); active-restore calls (1.0) pass through unmodified |
 | `Patch_EntityHUD_InitBars` | `EntityHUD.InitBars` | - | Bar init for non-unit entities; UnitHUD excluded by `TryCast` guard |
+| `Patch_StructureHUD_Init` | `StructureHUD.Init` | - | Dedicated init hook for structure HUDs; enables independent `StructureHUDScale` |
 | `Patch_ObjectiveHUD_SetObjective` | `ObjectiveHUD.SetObjective` | - | Per-objective init; fires once per objective instance |
 | `Patch_ObjectivesTracker_Init` | `ObjectivesTracker.Init` | - | Single init point for the tracker panel |
 | `Patch_MissionInfoPanel_Init` | `MissionInfoPanel.Init` | - | Single init point for the mission info panel |
 | `Patch_MovementHUD_SetDestination` | `MovementHUD.SetDestination` | - | Fires on each movement target selection; re-applies because labels update each call |
 | `Patch_BleedingWorldSpaceIcon_SetText` | `BleedingWorldSpaceIcon.SetText` | - | Fires on creation and each text update; confirmed in source |
+| `Patch_DropdownText_Init` | `DropdownText.Init` | - | Fires once on creation with text already set; covers all tactical flyover text |
+| `Patch_SkillBarButton_Init` | `SkillBarButton.Init` | - | Primary init for skill bar buttons |
+| `Patch_SkillBarButton_Show` | `SkillBarButton.Show` | - | Re-applies in case the game resets inline styles on show |
+| `Patch_BaseSkillBarItemSlot_Init` | `BaseSkillBarItemSlot.Init` | - | Covers both `SkillBarSlotWeapon` and `SkillBarSlotAccessory` via base class |
+| `Patch_SimpleSkillBarButton_SetText` | `SimpleSkillBarButton.SetText` | - | Fires on creation with text already set (same rationale as `BleedingWorldSpaceIcon`) |
+| `Patch_TurnOrderFactionSlot_Init` | `TurnOrderFactionSlot.Init` | - | Fires once per slot on creation |
+| `Patch_UnitsTurnBarSlot_Init` | `UnitsTurnBarSlot.Init` | - | Initial setup of turn bar slot |
+| `Patch_UnitsTurnBarSlot_SetActor` | `UnitsTurnBarSlot.SetActor` | - | Re-applies when the slot's unit changes; likely resets inline styles |
+| `Patch_SelectedUnitPanel_SetActor` | `SelectedUnitPanel.SetActor` | - | Fires on unit selection change; `Init` fires without actor data |
+| `Patch_TacticalUnitInfoStat_Init` | `TacticalUnitInfoStat.Init` | - | Fires once per stat row; covers all instances automatically via registry |
+| `Patch_TurnOrderPanel_UpdateFactions` | `TurnOrderPanel.UpdateFactions` | - | Earliest reliable point where the panel has content; no `Init` method present |
+| `Patch_StatusEffectIcon_InitSkillTemplate` | `StatusEffectIcon.Init(SkillTemplate)` | - | Resolved via reflection loop; one of two `Init` overloads |
+| `Patch_StatusEffectIcon_InitSkill` | `StatusEffectIcon.Init(Skill)` | - | Resolved via reflection loop; second `Init` overload |
+| `Patch_DelayedAbilityHUD_SetAbility` | `DelayedAbilityHUD.SetAbility` | - | Fires on ability assignment; also runs delayed marker scan |
+| `Patch_DelayedAbilityHUD_SetProgressPct` | `DelayedAbilityHUD.SetProgressPct` | - | Re-applies on each progress update; may reset `Progress` inline styles |
 | `Patch_MovementVisualizer_ShowPath` | `MovementVisualizer.ShowPath` | - | Re-applies colour after each path update, since the game resets colours from its own state |
 | `Patch_TargetAimVisualizer_UpdateAim` | `TargetAimVisualizer.UpdateAim` | - | Re-applies `MaterialPropertyBlock` (InRangeColor + OutOfRangeColor fix) after each mesh rebuild |
 | `LOSResizePatch` | `LineOfSightVisualizer.Resize(int)` | - | Private method resolved via `AccessTools.Method`; re-applies LOS line colour after each pool resize |
-| `Patch_DropdownText_Init` | `DropdownText.Init` | - | Fires once on creation with text already set; covers all tactical flyover text |
 
 Slot numbers are confirmed from game source files. Harmony resolves methods by name, not slot - the slots are documented here for virtual dispatch verification only.
 
@@ -732,6 +851,8 @@ if (Input.GetKeyDown(_reloadKey))
 
 Hot-reload is only fully functional in tactical scenes. `TileHighlighter.Exists()` returns false outside tactical, so `TryApply()` silently no-ops. `VisualizerCustomizer.TryApply()` will find no instances outside tactical and silently returns. The config reload and log summary still fire regardless of scene.
 
+USS colours are additionally applied in the **Strategy scene** via `OnSceneLoaded`. Because `UIConfig` is not available immediately on scene load, `ApplyUSSAfterDelay(0.5f)` runs as a coroutine and calls `USSCustomizer.TryApply()` after a 0.5 second delay. This ensures USS theme colours take effect on the strategy map without requiring a hot-reload.
+
 ---
 
 ## 7. The scan system
@@ -793,7 +914,7 @@ Private fields on Il2Cpp types are not accessible via standard C# reflection. `G
 Consequences for this codebase:
 - Any future feature requiring access to private Il2Cpp fields must either: (a) target a public field/method on the same type, (b) use a child `Component` that has a registered Il2Cpp binding, or (c) use direct field-offset access via Il2Cpp pointer arithmetic.
 
-Similarly, `GetComponent<T>()` only works if Il2CppInterop has generated a binding for `T`. If `GetComponent` returns only the raw base `Component` type, the binding is missing - but the component may still be accessible via a known field offset on the parent type (see `LineOfSightVisualizer` in Section 10 for an example of how Ghidra resolved this).
+Similarly, `GetComponent<T>()` only works if Il2CppInterop has generated a binding for `T`. If `GetComponent` returns only the raw base `Component` type, the binding is missing - but the component may still be accessible via a known field offset on the parent type (see `LineOfSightVisualizer` in Section 3 for an example of how Ghidra resolved this).
 
 ### GetClasses() - why the helper exists and full source
 
@@ -961,7 +1082,7 @@ private static class Patch_YourHUD_YourInitMethod
         try
         {
             var el = __instance.Cast<Il2CppInterfaceElement>();
-            YourCustomizer.Apply(el);                // if adding a new customiser
+            TacticalElementCustomizer.Apply(el, "YourHUD");  // if adding tint/style overrides
             FontCustomizer.Apply(el, "YourHUD");
             Register(el, "YourHUD");
             if (!_scanned) { _scanned = true; Scans.RunElementScan(el, "YourHUD"); }
@@ -1007,319 +1128,51 @@ Add `YourCustomizer.LogSummary()` and call it from the summary block in `LoadCon
 
 ---
 
-## 10. Known gaps and incomplete work
-
-### TargetAimVisualizer OutOfRangeColor - done implemented
-
-**Root cause (confirmed via Ghidra decompilation of `GameAssembly.dll`):**
-
-`UpdateAim()` hardcodes `0x3f800000` (1.0f = white) for the out-of-range rendering path without reading the native `OutOfRangeColor` field at all. The field write in `ApplyTargetAimVisualizer()` succeeds but is immediately overwritten by the game on every `UpdateAim()` call.
-
-**Fix applied:** `ReapplyTargetAimVisualizerColors()` (called from the `Patch_TargetAimVisualizer_UpdateAim` postfix) reads `_UnlitColor` back from the material after `UpdateAim()` runs to detect range state (white = in-range, as set by the game; non-white = already our override). When out-of-range, it writes `OutOfRangeColor` as `_UnlitColor` via `MaterialPropertyBlock` - after the game's write, so it is never overwritten until the next `UpdateAim()` call, at which point the postfix fires again.
-
-**Status:** Fully implemented and functional. Config slot: `Visualizers.TargetAimVisualizer.OutOfRangeColor`.
-
----
-
-### LineOfSightVisualizer - done implemented
-
-**Confirmed finding (Ghidra + dump.cs + runtime verification):** Renderer type is `Il2CppShapes.Line` from `Il2CppShapesRuntime.dll` (namespace `Il2CppShapes`, class `Line`). The original scan finding ("Shapes library types with no bindings") was incorrect - the DLL is present and bindings are generated. An intermediate finding that the components were `UnityEngine.LineRenderer` was also incorrect and has been retracted.
-
-Pool structure: `List<Line[]> m_Lines`, 3 `Line` entries per group (fade-in, solid, fade-out). Colour is written only in `Resize(int)` via `ColorStart`/`ColorEnd` on each `Line`. `GetComponentsInChildren<T>` throws a fatal Il2CppInterop type-initialiser exception for this type - indexed `GetChild(i).GetComponent<Il2CppShapes.Line>()` traversal is required.
-
-Fade pattern per group (i % 3): index 0 = fade-in (`ColorStart` alpha=0, `ColorEnd` alpha=A), index 1 = solid (both alpha=A), index 2 = fade-out (`ColorStart` alpha=A, `ColorEnd` alpha=0).
-
-**Implementation:** `LOSResizePatch` postfixes `Resize(int)` (private - resolved via `AccessTools.Method`). `VisualizerCustomizer.ApplyLineOfSightColor` applies the fade pattern to all children. `VisualizerCustomizer.TryApplyLineOfSight` handles `TacticalReady` and hot-reload. `LogLineOfSightSummary` writes a summary line. Verified in log. Config slot: `Visualizers.LineOfSight.LineColor` (`TileHighlightEntry`).
-
----
-
-### BleedingWorldSpaceIcon - done element name confirmed
-
-**Confirmed:** UXML element name is `TextElement`, matching the predicted translation of `private readonly Label m_TextElement`. Scan confirmed. `FontCustomizer.ApplyBleedingWorldSpaceIcon()` updated from `QueryAndSet` to `SetFont(el.Q("TextElement", (string)null), ...)`. No further action needed.
-
----
-
-### SimpleWorldSpaceIcon - done confirmed, scan infrastructure deleted
-
-**Conclusion:** `SimpleWorldSpaceIcon` has no fields beyond its UXML path constant (`simple_world_space_icon`). It contains no `m_TextElement`, no icon reference, and no colour fields. There is nothing to customise.
-
-`Patch_WorldSpaceIcon_Update_Scan`, its `RegisterPatches()` entry, and `Scans.RunWorldSpaceIconScan()` have all been deleted. No further action needed.
-
----
-
-### UIConfig rarity and mission colours - done implemented
-
-**`[UssColor]` status (confirmed from `dump.cs`):**
-- Rarity fields (`ColorCommonRarity` etc.) - no `[UssColor]`. Implemented in `UnitCustomizer.ApplyRarityColors()` via the `FactionHealthBarColors` pattern.
-- Mission state fields (`ColorMissionPlayable` etc.) - yes `[UssColor]`. Implemented in `USSCustomizer.TryApply()` alongside the existing 23 USS fields.
-- `ColorPositionMarkerDelayedAbility` - no `[UssColor]`. Implemented in `UnitCustomizer.ApplyRarityColors()` alongside the rarity fields.
-
-**Config classes:** `RarityColorsConfig` (holds 6 rarity slots + `ColorPositionMarkerDelayedAbility`), `USSColorsConfig` (extended with 5 mission state slots). Config section: `RarityColors` and `USSColors` respectively. All fields confirmed with game defaults from scan log (see UIConfig table in Section 3). Log summary: `UnitCustomizer.LogRarityColorSummary()` called from `LoadConfig()`.
-
----
-
-### UnitHUD element scan - done deleted
-
-**Status:** Element tree fully confirmed by scan log (see complete tree in Section 3). `Patch_UnitHUD_OnUpdate_Scan` and its `RegisterPatches()` entry have been deleted. No further action needed.
-
----
-
-### ObjectivesTracker progress bar - done implemented
-
-**Status:** The tracker progress bar (`ProgressBar > Pickable > Fill/PreviewFill`) is now configurable via `ObjectivesTrackerProgressBar` in config and applied through `TacticalElementCustomizer.ApplyObjectivesTrackerProgressBar(...)`.
-
-**Runtime wiring:** Applied from `Patch_ObjectivesTracker_Init` and re-applied from `ReapplyToLiveElements()`.
-
----
-
-### ObjectiveHUD, MissionInfoPanel - font only, confirmed complete
-
-**Status:** Both have been confirmed as text-only elements from source and scan. `ObjectiveHUD` has no bars, backgrounds, or tintable elements beyond icon sprites (which use USS class colouring, not inline style tints). `MissionInfoPanel` is two label elements inside a plain container.
-
-**No further action needed** unless icon tinting or background colours are desired in the future. The current font-only implementation is correct for both.
-
----
-
-## 11. Dump.cs investigation findings - Menace.UI.Tactical types
-
-Status note: this section is a historical investigation snapshot (pre-implementation recommendations). Use current implementation state in `PLAN.md` ("Current Status"), plus "Step 2 Runtime Scan Status" in this document, as the authoritative status.
-
-All 22 target types extracted from `Assembly-CSharp` via `dump.cs`. Findings are grouped by verdict.
-
-**Patching strategy key:**
-- *Registry pattern* - type inherits `InterfaceElement` / `InteractiveElement` / `BaseHUD`; use Harmony postfix + `Register(el, "TypeName")` + `ReapplyToLiveElements()` case.
-- *Standalone* - type does not inherit a UIElement base; use direct field access via the patch instance; do not register.
-
----
-
-### SkillBarButton - implemented
-
-**Inherits:** `BaseButton, ISkillBarElement` → `InterfaceElement`. Registry pattern.
-
-**Customisable fields:**
-- `m_SkillIcon` (`VisualElement`) - icon background tint via `style.unityBackgroundImageTintColor`
-- `m_SelectedOverlay` (`VisualElement`) - selected state overlay tint
-- `m_HoverOverlay` (`VisualElement`) - hover state overlay tint
-- `m_ActionPointsLabel` (`Label`) - font/colour
-- `m_UsesLabel` (`Label`) - font/colour
-- `m_HotkeyLabel` (`Label`) - font/colour
-
-**Hook:** `Init(UITactical _ui)` - fires once on creation. Re-apply hook: `Show()` (game may reset inline styles on show, same pattern as `UnitHUD`).
-
-**Note:** `m_PreviewButtonOpacity` and `m_PreviewAnimationProgress` are animation state floats managed by the game's own update loop (`Update(float, bool)`). Do not write to them directly - they will be overwritten each frame.
-
-**Element names:** Not scan-confirmed. Use `QueryAndSet` / `RunElementScan` to confirm UXML names before switching to direct `el.Q()` calls.
-
----
-
-### BaseSkillBarItemSlot - implemented
-
-**Inherits:** `BaseButton, ISkillBarElement` → `InterfaceElement`. Registry pattern. Both `SkillBarSlotWeapon` and `SkillBarSlotAccessory` inherit from this - one patch on the base covers both slot types.
-
-**Customisable fields:**
-- `m_Background` (`VisualElement`) - slot background tint
-- `m_ItemIcon` (`VisualElement`) - item icon tint
-- `m_Cross` (`VisualElement`) - the unusable/disabled X overlay tint
-
-**Hook:** `Init(UITactical _ui)` - virtual, overridden by both subclasses. Patch the base class method; apply the `TryCast<SkillBarSlotWeapon>` / `TryCast<SkillBarSlotAccessory>` guard pattern if subclass-specific behaviour is needed, otherwise the base patch covers both.
-
-**Element names:** Not scan-confirmed. Use `RunElementScan` at `Init` time.
-
----
-
-### SkillBarSlotWeapon - implemented alongside BaseSkillBarItemSlot
-
-**Inherits:** `BaseSkillBarItemSlot`. Registry pattern.
-
-**Customisable fields beyond base:**
-- `m_NameLabel` (`Label`) - weapon name label font/colour
-
-**Hook:** `Init(UITactical _ui)` (override). A separate patch on `SkillBarSlotWeapon.Init` is needed only if the weapon name label requires its own font config entry. Otherwise covered by the `BaseSkillBarItemSlot` patch.
-
----
-
-### SkillBarSlotAccessory - no own fields
-
-**Inherits:** `BaseSkillBarItemSlot`. No fields beyond the base class. Fully covered by `BaseSkillBarItemSlot` patch. No separate patch needed.
-
----
-
-### SimpleSkillBarButton - implemented
-
-**Inherits:** `BaseButton` → `InterfaceElement`. Registry pattern.
-
-**Customisable fields:**
-- `m_Label` (`Label`) - button text font/colour
-- `m_HotkeyLabel` (`Label`) - hotkey label font/colour
-- `m_Hover` (`VisualElement`) - hover overlay tint
-
-**Hook:** `SetText(string _text)` - fires on creation with text already populated. This is the correct hook (same rationale as `BleedingWorldSpaceIcon.SetText`).
-
-**Element names:** Not scan-confirmed.
-
----
-
-### TurnOrderFactionSlot - implemented
-
-**Inherits:** `InteractiveElement` → `InterfaceElement`. Registry pattern.
-
-**Customisable fields:**
-- `m_InactiveMask` (`VisualElement`) - overlay tint shown when faction is inactive
-- `m_Selected` (`VisualElement`) - selection highlight tint
-- `m_InactiveIcon` (`VisualElement`) - inactive state icon tint
-
-**Hook:** `Init(FactionTemplate _factionTemplate, int _leftToActActors, int _totalActors, bool _activeFaction)` - fires once per slot.
-
-**Element names:** Not scan-confirmed.
-
----
-
-### UnitsTurnBarSlot - implemented
-
-**Inherits:** `BaseHoverButton, IDisposable`. Registry pattern (BaseHoverButton ultimately inherits InterfaceElement).
-
-**Customisable fields:**
-- `m_OverlayElement` (`VisualElement`) - the animated overlay tint (the game uses `GRAY_OVERLAY_COLOR` as its own constant; this can be overridden via inline style on the element)
-- `m_Selected` (`VisualElement`) - selected unit highlight tint
-- `m_PortraitElement` (`VisualElement`) - portrait tint
-
-**Hook:** `Init(UITactical _screen)` for initial setup. Re-apply hook: `SetActor(Actor _actor)` - fires when the slot's unit changes, likely resets inline styles.
-
-**Note:** `GRAY_OVERLAY_COLOR` is a `private static readonly Color` - it cannot be patched directly. The overlay colour is applied to `m_OverlayElement` via inline style at some point; patching `SetActor` and overwriting the inline style after the game sets it is the correct approach.
-
-**Element names:** Not scan-confirmed.
-
----
-
-### SelectedUnitPanel - implemented
-
-**Inherits:** `InterfaceElement`. Registry pattern.
-
-**Customisable fields:**
-- `m_Portrait` (`VisualElement`) - unit portrait tint
-- `m_UnitWindowHeader` (`VisualElement`) - header background tint
-- `m_ConditionLabel` (`Label`) - condition text font/colour
-- `m_ActionPointsLabel` (`Label`) - AP label font/colour
-
-**Hook:** `SetActor(Actor _actor, bool _actorChanged)` - fires on unit selection change. `Init()` fires once at scene load but without actor data; `SetActor` is the correct hook for content-populated customisation.
-
-**Note:** `m_StatsContainer`, `m_PerksContainer`, `m_EmotionalStatesContainer` etc. are layout containers populated with `TacticalUnitInfoStat` children - customise those via a separate `TacticalUnitInfoStat` patch rather than targeting the containers here.
-
-**Element names:** Not scan-confirmed.
-
----
-
-### DelayedAbilityHUD - partial (evidence-gated marker finalization), hybrid patching
-
-**Inherits:** `BaseHUD, IDisposable` → `InteractiveElement` → `InterfaceElement`. Registry pattern for the UIElement surface. Material surface handled separately.
-
-**Customisable fields:**
-- `m_ProgressElement` (`VisualElement`) - progress ring/bar fill tint via inline style
-- `m_WorldSpaceMarkerMaterial` (`Material`) - world-space marker colour via `MaterialPropertyBlock` or `SetWorldSpaceMarkerColor(Color)`
-
-**Hook:** `SetAbility(DelayedOffmapAbility _ability)` - fires on assignment. Re-apply: `SetProgressPct(float _pct)` - fires on each progress update and likely resets `m_ProgressElement` inline styles.
-
-**Relationship to `ColorPositionMarkerDelayedAbility`:** The UIConfig field `ColorPositionMarkerDelayedAbility` (offset `0x608`) is the game's own source for the world-space marker colour - it feeds `SetWorldSpaceMarkerColor()` somewhere in the game's update logic. Wiring up that UIConfig field via `UnitCustomizer` (non-USS pattern) may be sufficient for the marker colour without a direct Material patch. Confirm by testing whether setting `ColorPositionMarkerDelayedAbility` on `UIConfig.Get()` changes the marker in-game before implementing the Material path.
-
----
-
-### TacticalUnitInfoStat - implemented
-
-**Inherits:** `InteractiveElement` → `InterfaceElement`. Registry pattern.
-
-**Customisable fields:**
-- `m_ValueLabel` (`Label`) - stat value font/colour
-- `m_Icon` (`VisualElement`) - stat icon tint
-
-**Hook:** `Init(PropertyDisplayConfig _property, float _value)` - fires once per stat row on creation.
-
-**Note:** Multiple `TacticalUnitInfoStat` instances are created dynamically inside `SelectedUnitPanel.m_StatsContainer`. Each fires its own `Init` - the patch will cover all of them automatically via the registry.
-
----
-
-### StatusEffectIcon - implemented (template overload evidence deferred)
-
-**Inherits:** `InteractiveElement` → `InterfaceElement`. Registry pattern.
-
-**Customisable fields:**
-- `m_StackCountLabel` (`Label`) - stack count font/colour
-
-**Hook:** Two overloads - `Init(SkillTemplate _skillTemplate)` and `Init(Skill _skill)`. Patch both, or patch the base `InteractiveElement` init if both call a common base (confirm via scan).
-
-**Note:** The icon image itself is set via USS class on the root element, not via a named child `VisualElement` - tinting the root element's `unityBackgroundImageTintColor` is possible but would tint the entire element including the stack label background. Scope font customisation to the label only unless a per-icon tint config is explicitly desired.
-
----
-
-### TurnOrderPanel - implemented
-
-**Inherits:** `InterfaceElement`. Registry pattern.
-
-**Customisable fields:**
-- `m_RoundNumberLabel` (`Label`) - round number font/colour
-
-**Hook:** `UpdateFactions()` - no `Init` method present. This fires when faction data changes; it is the earliest reliable point where the panel has content. Use the `_scanned` flag pattern to fire `RunElementScan` once for UXML name confirmation.
-
----
-
-### StructureHUD - free, scale config only
-
-**Inherits:** `EntityHUD`. The existing `Patch_EntityHUD_InitBars` already fires for `StructureHUD` instances (the `TryCast<UnitHUD>` guard only skips `UnitHUD` subtypes, not `StructureHUD`). Bar colours and fonts from `EntityHUD` config already apply at no implementation cost.
-
-**What is missing:** No `StructureHUDScale` config entry exists. Add one following the `EntityHUDScale` pattern in `HUDConfig.cs` and `UnitCustomizer.Apply()`. Verify in-game that structures with visible HUDs actually appear in tactical before prioritising this.
-
-**Files:** `HUDConfig.cs`, `UnitCustomizer.cs`.
-
----
-
-### Types confirmed as not customisable
-
-| Type | Reason |
-|---|---|
-| `SkillUsesBar` | Notch colours driven by USS class only; no inline override surface |
-| `UnitBadge` | `IDisposable` wrapper; badge tint already covered by `ContainedBadge` in `UnitHUD` element tree |
-| `TacticalBarkPanel` | Fields are audio visualisation scaffolding only (float arrays, waveform columns); no text or colour fields |
-| `OffmapAbilityButton` | Button image and state colours entirely USS-driven via `SelectableImageButton` base; no direct surface |
-| `UnitsTurnBar` | Layout container wrapper only; no Color or Label fields |
-| `BaseHUD` | Positional/rendering flags only; no Color or Label fields |
-| `WorldSpaceIcon` | Confirmed empty - no fields at all; consistent with `SimpleWorldSpaceIcon` findings |
-| `SkillBar` | Layout container wrapper only; no Color or Label fields |
-| `ISkillBarElement` | Interface definition only |
-
----
-
-## Step 2 Runtime Scan Status (Latest.log)
+## 10. Runtime scan status
 
 Source: `C:\Program Files (x86)\Steam\steamapps\common\Menace\MelonLoader\Latest.log`
 Latest reviewed run: `2026-03-26 20:43` (America/Vancouver)
 
-Confirmed (scan fired):
-- `SkillBarButton`: `SkillIcon`, `HoverOverlay`, `SelectedOverlay`, `Cross`, `HotkeyLabel`, `UsesLabel`, `ActionPointsLabel`
-- `BaseSkillBarItemSlot`: `Background`, `IconContainer`, `ItemIcon`, `Cross`
-- `SimpleSkillBarButton`: `Icon`, `Label`
-- `TurnOrderFactionSlot`: `InactiveMask`, `InactiveIcon`, `Selected`
-- `UnitsTurnBarSlot`: `Portrait`, `Badge`, `Overlay`, `Selected`
-- `UnitsTurnBarSlot.SetActor`: same element tree as `UnitsTurnBarSlot`
-- `SelectedUnitPanel`: `ActionPointsLabel`, `ConditionLabel`, `UnitName`, `LeaderName` (plus expected container hierarchy)
-- `TacticalUnitInfoStat`: `Icon`, `Value`
-- `TurnOrderPanel`: `RoundNumber`, `Factions`
-- `StatusEffectIcon.InitSkill`: `StackCount`
-- `DelayedAbilityHUD`: `Progress`, `DisabledIcon`
+### Confirmed (scan fired)
 
-Incomplete in last evidence capture (scan did not fire):
+| Type | Confirmed element names |
+|---|---|
+| `SkillBarButton` | `SkillIcon`, `HoverOverlay`, `SelectedOverlay`, `Cross`, `HotkeyLabel`, `UsesLabel`, `ActionPointsLabel` |
+| `BaseSkillBarItemSlot` | `Background`, `IconContainer`, `ItemIcon`, `Cross` |
+| `SimpleSkillBarButton` | `Icon`, `Label` |
+| `TurnOrderFactionSlot` | `InactiveMask`, `InactiveIcon`, `Selected` |
+| `UnitsTurnBarSlot` | `Portrait`, `Badge`, `Overlay`, `Selected` |
+| `UnitsTurnBarSlot.SetActor` | Same element tree as `UnitsTurnBarSlot` |
+| `SelectedUnitPanel` | `ActionPointsLabel`, `ConditionLabel`, `UnitName`, `LeaderName` (plus expected container hierarchy) |
+| `TacticalUnitInfoStat` | `Icon`, `Value` |
+| `TurnOrderPanel` | `RoundNumber`, `Factions` |
+| `StatusEffectIcon.InitSkill` | `StackCount` |
+| `DelayedAbilityHUD` | `Progress`, `DisabledIcon` |
+
+### Incomplete - scan did not fire in last evidence capture
+
 - `SkillBarButton.Show`
 - `StatusEffectIcon.InitSkillTemplate`
 - `DelayedAbilityHUD.SetProgressPct`
 
-Delayed marker validation (Step 7):
-- `DelayedAbility Marker Scan [SetAbility]` fired.
-- `UIConfig.ColorPositionMarkerDelayedAbility` logged successfully.
-- `m_WorldSpaceMarkerMaterial` was null at this phase.
+### Element names not yet scan-confirmed
+
+The following implemented types have not had their UXML element names confirmed by scan. Use `QueryAndSet` rather than direct `el.Q()` calls until confirmed:
+
+- `SkillBarButton` (hook: `Init`, re-apply hook: `Show`)
+- `BaseSkillBarItemSlot` (hook: `Init`)
+- `SkillBarSlotWeapon` - `m_NameLabel` only; base fields covered by `BaseSkillBarItemSlot` scan
+- `SimpleSkillBarButton` (hook: `SetText`)
+- `TurnOrderFactionSlot` (hook: `Init`)
+- `UnitsTurnBarSlot` (hook: `Init`, re-apply hook: `SetActor`)
+- `SelectedUnitPanel` (hook: `SetActor`)
+- `TurnOrderPanel` (hook: `UpdateFactions`)
+- `StatusEffectIcon` - `InitSkillTemplate` overload only; `InitSkill` overload confirmed above
+
+### Delayed marker validation
+
+- `DelayedAbility Marker Scan [SetAbility]` fired. `UIConfig.ColorPositionMarkerDelayedAbility` logged successfully. `m_WorldSpaceMarkerMaterial` was null at this phase.
 - `DelayedAbility Marker Scan [SetProgressPct]` did not fire (incomplete).
+- Selector choices for `DelayedAbilityHUD` remain based on currently confirmed names. The three incomplete items above are tracked as deferred evidence gaps.
 
-Implementation note:
-- Step 10 cleanup removed temporary scan scaffolding from `HUDCustomizer.cs`.
-- Keep these three items tracked as deferred evidence gaps; selector choices remain based on currently confirmed names.
-
-
-
-
+**Implementation note:** Step 10 cleanup removed temporary scan scaffolding from `HUDCustomizer.cs`. Keep incomplete items above tracked until evidence is captured.
