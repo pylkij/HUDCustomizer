@@ -1,6 +1,6 @@
-# HUD Customizer - Getting Started
+# Tactical HUD Customizer - Getting Started
 
-HUD Customizer has a lot of settings. Most of them do something useful, but not all of them will feel immediately impactful. This guide covers the areas worth prioritising if you want the biggest improvement to readability and gameplay clarity with the least amount of fiddling.
+Tactical HUD Customizer has a lot of settings. Most of them do something useful, but not all of them will feel immediately impactful. This guide covers the areas worth prioritising if you want the biggest improvement to readability and gameplay clarity with the least amount of fiddling.
 
 If you'd rather skip the setup entirely, a ready-to-use personal config is available as an optional download on the Nexus page.
 

@@ -1,4 +1,4 @@
-# HUDCustomizer
+# Tactical HUD Customizer
 
 A mod for **MENACE** that lets you change the appearance of the tactical HUD — colours, fonts, and scaling — without editing game files. All settings are stored in a single text file that you can edit in Notepad, and changes can be applied in-game without restarting.
 
@@ -363,7 +363,7 @@ Each LOS ray is rendered as three segments — a fade-in at the start, a solid m
 
 ### Combat flyover text
 
-Displays combat results as flyover text above the attacking unit after each skill use — showing HP damage dealt, armour damage, and accuracy. This feature is built into HUDCustomizer and enabled by default.
+Displays combat results as flyover text above the attacking unit after each skill use — showing HP damage dealt, armour damage, and accuracy. This feature is built into Tactical HUD Customizer and enabled by default.
 
 Settings are grouped under `"CombatFlyover"` in the config file.
 

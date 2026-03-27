@@ -1,6 +1,6 @@
-# HUDCustomizer - Contributor & Maintainer Reference
+# Tactical HUD Customizer - Contributor & Maintainer Reference
 
-HUDCustomizer is a MelonLoader mod for **MENACE** (Il2Cpp, Unity 6, .NET 6) that lets players customise the tactical HUD via a JSON config file. It supports hot-reload at runtime.
+Tactical HUD Customizer is a MelonLoader mod for **MENACE** (Il2Cpp, Unity 6, .NET 6) that lets players customise the tactical HUD via a JSON config file. It supports hot-reload at runtime.
 
 This document is written for contributors and AI agents working on the codebase. It covers architecture, file responsibilities, the patching strategy, and how to add new features. End-user documentation lives in the JSON config file itself as inline comments.
 

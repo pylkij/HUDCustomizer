@@ -552,7 +552,7 @@ public static class HUDConfig
         return
 @"{
   // ==========================================================================
-  // HUDCustomizer config  (Mods/HUDCustomizer/HUDCustomizer.json)
+  // Tactical HUD Customizer config  (Mods/HUDCustomizer/HUDCustomizer.json)
   // Hot-reload: press ReloadKey in a tactical scene to apply changes instantly.
   // USS colours (USSColors section) also apply automatically when the strategy
   // map loads -- no hot-reload needed for those in the strategy scene.
@@ -920,9 +920,6 @@ public static class HUDConfig
    },
 
   // --- Combat Flyover Text --------------------------------------------------
-  // Requires the CombatFlyoverText mod to be installed alongside HUDCustomizer.
-  // If CombatFlyoverText is not loaded these settings are read but have no effect.
-  //
   // Enabled: set to false to disable all flyover display and duration extension.
   //
   // Colour values use Unity Rich Text hex format.
