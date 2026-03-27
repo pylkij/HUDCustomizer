@@ -9,6 +9,7 @@ using System.Text.Json;
 //   HUDCustomizerConfig          -- top-level config object (deserialized from JSON)
 //   FontSettings                 -- font/size/color override for a single element group
 //   TileHighlightEntry           -- single enabled/RGBA slot (shared by Tile, USS, Faction)
+//   TacticalUIStylesConfig       -- scan-driven tactical UI tint/opacity overrides
 //   TileHighlightsConfig         -- all tile highlight colour slots
 //   USSColorsConfig              -- all USS global theme colour slots
 //   FactionHealthBarColorsConfig -- faction-specific health bar colour slots
@@ -32,6 +33,9 @@ public class HUDCustomizerConfig
     public float UnitHUDScale     { get; set; } = 1.0f;
     // Multiplier applied to non-unit entity HUDs (vehicles, emplacements, etc.).
     public float EntityHUDScale   { get; set; } = 1.0f;
+    // Multiplier applied to StructureHUD instances (inherits EntityHUD).
+    // Kept separate from EntityHUDScale for independent structure tuning.
+    public float StructureHUDScale { get; set; } = 1.0f;
     // Transform origin: which point stays fixed when scaling.
     // Values are percentages of element width/height.
     // X: 50 = horizontal centre.
@@ -127,6 +131,36 @@ public class HUDCustomizerConfig
     // by scan: Label (fontSize=14, USS class font-headline).
     public FontSettings DropdownText        { get; set; } = new(); // Label (fontSize=14)
 
+    // SkillBarButton text elements
+    public FontSettings SkillBarActionPointsLabel { get; set; } = new(); // ActionPointsLabel
+    public FontSettings SkillBarUsesLabel         { get; set; } = new(); // UsesLabel
+    public FontSettings SkillBarHotkeyLabel       { get; set; } = new(); // HotkeyLabel
+
+    // SimpleSkillBarButton text elements
+    public FontSettings SimpleSkillBarLabel       { get; set; } = new(); // Label
+    public FontSettings SimpleSkillBarHotkeyLabel { get; set; } = new(); // HotkeyLabel
+
+    // SkillBarSlotWeapon text elements
+    public FontSettings SkillBarSlotWeaponNameLabel { get; set; } = new(); // NameLabel
+
+    // SelectedUnitPanel text elements
+    public FontSettings SelectedUnitConditionLabel    { get; set; } = new(); // ConditionLabel
+    public FontSettings SelectedUnitActionPointsLabel { get; set; } = new(); // ActionPointsLabel
+
+    // TacticalUnitInfoStat text elements
+    public FontSettings TacticalUnitInfoValueLabel { get; set; } = new(); // Value
+
+    // Turn order / status text elements
+    public FontSettings TurnOrderPanelRoundNumberLabel { get; set; } = new(); // RoundNumber
+    public FontSettings StatusEffectIconStackCountLabel { get; set; } = new(); // StackCount
+
+    // ObjectivesTracker progress bar colours (same Fill / PreviewFill / Pickable pattern
+    // as UnitHUD/EntityHUD bars; string format matches existing bar colour settings).
+    public ObjectivesTrackerProgressBarColorsConfig ObjectivesTrackerProgressBar { get; set; } = new();
+
+    // Tactical UI element tint/style overrides for systems under active implementation.
+    public TacticalUIStylesConfig TacticalUIStyles { get; set; } = new();
+
     // Tile highlight colours
     public TileHighlightsConfig TileHighlights { get; set; } = new();
 
@@ -163,6 +197,79 @@ public class TileHighlightEntry
     public float G       { get; set; } = 255f;
     public float B       { get; set; } = 255f;
     public float A       { get; set; } = 1f;
+}
+
+// ObjectivesTracker progress bar inline colour overrides.
+// Uses the same string format as existing UnitHUD/EntityHUD bar colours:
+// "R, G, B" or "R, G, B, A". Empty string leaves unchanged.
+public class ObjectivesTrackerProgressBarColorsConfig
+{
+    public string FillColor    { get; set; } = "";
+    public string PreviewColor { get; set; } = "";
+    public string TrackColor   { get; set; } = "";
+}
+
+public class SkillBarButtonStyleConfig
+{
+    public TileHighlightEntry SkillIconTint       { get; set; } = new();
+    public TileHighlightEntry SelectedOverlayTint { get; set; } = new();
+    public TileHighlightEntry HoverOverlayTint    { get; set; } = new();
+    // -1 = leave game animation-driven preview opacity unchanged.
+    public float PreviewOpacity { get; set; } = -1f;
+}
+
+public class BaseSkillBarItemSlotStyleConfig
+{
+    public TileHighlightEntry BackgroundTint { get; set; } = new();
+    public TileHighlightEntry ItemIconTint   { get; set; } = new();
+    public TileHighlightEntry CrossTint      { get; set; } = new();
+}
+
+public class SimpleSkillBarButtonStyleConfig
+{
+    public TileHighlightEntry HoverTint { get; set; } = new();
+}
+
+public class TurnOrderFactionSlotStyleConfig
+{
+    public TileHighlightEntry InactiveMaskTint { get; set; } = new();
+    public TileHighlightEntry SelectedTint     { get; set; } = new();
+    public TileHighlightEntry InactiveIconTint { get; set; } = new();
+}
+
+public class UnitsTurnBarSlotStyleConfig
+{
+    public TileHighlightEntry OverlayTint  { get; set; } = new();
+    public TileHighlightEntry SelectedTint { get; set; } = new();
+    public TileHighlightEntry PortraitTint { get; set; } = new();
+}
+
+public class SelectedUnitPanelStyleConfig
+{
+    public TileHighlightEntry PortraitTint { get; set; } = new();
+    public TileHighlightEntry HeaderTint   { get; set; } = new();
+}
+
+public class TacticalUnitInfoStatStyleConfig
+{
+    public TileHighlightEntry IconTint { get; set; } = new();
+}
+
+public class DelayedAbilityHUDStyleConfig
+{
+    public TileHighlightEntry ProgressTint { get; set; } = new();
+}
+
+public class TacticalUIStylesConfig
+{
+    public SkillBarButtonStyleConfig       SkillBarButton       { get; set; } = new();
+    public BaseSkillBarItemSlotStyleConfig BaseSkillBarItemSlot { get; set; } = new();
+    public SimpleSkillBarButtonStyleConfig SimpleSkillBarButton { get; set; } = new();
+    public TurnOrderFactionSlotStyleConfig TurnOrderFactionSlot { get; set; } = new();
+    public UnitsTurnBarSlotStyleConfig     UnitsTurnBarSlot     { get; set; } = new();
+    public SelectedUnitPanelStyleConfig    SelectedUnitPanel    { get; set; } = new();
+    public TacticalUnitInfoStatStyleConfig TacticalUnitInfoStat { get; set; } = new();
+    public DelayedAbilityHUDStyleConfig    DelayedAbilityHUD    { get; set; } = new();
 }
 
 // Tile highlight colour overrides.
@@ -452,6 +559,7 @@ public static class HUDConfig
   // Multiplier applied to unit / entity HUDs. 1.0 = original size.
   ""UnitHUDScale"":     1.0,
   ""EntityHUDScale"":   1.0,
+  ""StructureHUDScale"": 1.0,
 
   // Transform origin: which point of the element stays fixed during scaling.
   // X: 50 = horizontal centre.
@@ -577,6 +685,78 @@ public static class HUDConfig
   // DropdownText -- flyover text shown above units on skill/status application
   // (e.g. ""AP increased!"", suppression, Taking Command). Element name: Label (fontSize=14).
   ""DropdownText"":          { ""Font"": """", ""Size"": 0, ""Color"": """" },
+
+  // SkillBarButton
+  ""SkillBarActionPointsLabel"": { ""Font"": """", ""Size"": 0, ""Color"": """" },
+  ""SkillBarUsesLabel"":         { ""Font"": """", ""Size"": 0, ""Color"": """" },
+  ""SkillBarHotkeyLabel"":       { ""Font"": """", ""Size"": 0, ""Color"": """" },
+
+  // SimpleSkillBarButton
+  ""SimpleSkillBarLabel"":       { ""Font"": """", ""Size"": 0, ""Color"": """" },
+  ""SimpleSkillBarHotkeyLabel"": { ""Font"": """", ""Size"": 0, ""Color"": """" },
+
+  // SkillBarSlotWeapon
+  ""SkillBarSlotWeaponNameLabel"": { ""Font"": """", ""Size"": 0, ""Color"": """" },
+
+  // SelectedUnitPanel
+  ""SelectedUnitConditionLabel"":    { ""Font"": """", ""Size"": 0, ""Color"": """" },
+  ""SelectedUnitActionPointsLabel"": { ""Font"": """", ""Size"": 0, ""Color"": """" },
+
+  // TacticalUnitInfoStat
+  ""TacticalUnitInfoValueLabel"": { ""Font"": """", ""Size"": 0, ""Color"": """" },
+
+  // Turn order / status
+  ""TurnOrderPanelRoundNumberLabel"":  { ""Font"": """", ""Size"": 0, ""Color"": """" },
+  ""StatusEffectIconStackCountLabel"": { ""Font"": """", ""Size"": 0, ""Color"": """" },
+
+  // ObjectivesTracker progress bar colours
+  // Uses the same format as Unit/Entity HUD bar colours: ""R, G, B"" or ""R, G, B, A""
+  // Leave empty strings to keep game defaults.
+  ""ObjectivesTrackerProgressBar"": {
+    ""FillColor"": """",
+    ""PreviewColor"": """",
+    ""TrackColor"": """"
+  },
+
+  // Tactical UI style/tint overrides (scan-driven additions in progress).
+  // Each tint slot uses { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 }.
+  // Set Enabled=true to apply.
+  ""TacticalUIStyles"": {
+    ""SkillBarButton"": {
+      ""SkillIconTint"":       { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 },
+      ""SelectedOverlayTint"": { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 },
+      ""HoverOverlayTint"":    { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 },
+      ""PreviewOpacity"":      -1.0
+    },
+    ""BaseSkillBarItemSlot"": {
+      ""BackgroundTint"": { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 },
+      ""ItemIconTint"":   { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 },
+      ""CrossTint"":      { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 }
+    },
+    ""SimpleSkillBarButton"": {
+      ""HoverTint"":      { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 }
+    },
+    ""TurnOrderFactionSlot"": {
+      ""InactiveMaskTint"": { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 },
+      ""SelectedTint"":     { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 },
+      ""InactiveIconTint"": { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 }
+    },
+    ""UnitsTurnBarSlot"": {
+      ""OverlayTint"":      { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 },
+      ""SelectedTint"":     { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 },
+      ""PortraitTint"":     { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 }
+    },
+    ""SelectedUnitPanel"": {
+      ""PortraitTint"":     { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 },
+      ""HeaderTint"":       { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 }
+    },
+    ""TacticalUnitInfoStat"": {
+      ""IconTint"":         { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 }
+    },
+    ""DelayedAbilityHUD"": {
+      ""ProgressTint"":     { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 }
+    }
+  },
 
   // --- Tile highlight colours -----------------------------------------------
   // Each slot: { ""Enabled"": false, ""R"": 255, ""G"": 255, ""B"": 255, ""A"": 1.0 }
