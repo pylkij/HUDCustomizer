@@ -1286,3 +1286,31 @@ All 22 target types extracted from `Assembly-CSharp` via `dump.cs`. Findings are
 | `WorldSpaceIcon` | Confirmed empty — no fields at all; consistent with `SimpleWorldSpaceIcon` findings |
 | `SkillBar` | Layout container wrapper only; no Color or Label fields |
 | `ISkillBarElement` | Interface definition only |
+
+---
+
+## Step 2 Runtime Scan Status (Latest.log)
+
+Source: `C:\Program Files (x86)\Steam\steamapps\common\Menace\MelonLoader\Latest.log`
+
+Confirmed (scan fired):
+- `SkillBarButton`: `SkillIcon`, `HoverOverlay`, `SelectedOverlay`, `Cross`, `HotkeyLabel`, `UsesLabel`, `ActionPointsLabel`
+- `BaseSkillBarItemSlot`: `Background`, `IconContainer`, `ItemIcon`, `Cross`
+- `SimpleSkillBarButton`: `Icon`, `Label`
+- `TurnOrderFactionSlot`: `InactiveMask`, `InactiveIcon`, `Selected`
+- `UnitsTurnBarSlot`: `Portrait`, `Badge`, `Overlay`, `Selected`
+- `UnitsTurnBarSlot.SetActor`: same element tree as `UnitsTurnBarSlot`
+- `SelectedUnitPanel`: `ActionPointsLabel`, `ConditionLabel`, `UnitName`, `LeaderName` (plus expected container hierarchy)
+- `TacticalUnitInfoStat`: `Icon`, `Value`
+- `TurnOrderPanel`: `RoundNumber`, `Factions`
+- `StatusEffectIcon.InitSkill`: `StackCount`
+- `DelayedAbilityHUD`: `Progress`, `DisabledIcon`
+
+Incomplete (scan did not fire):
+- `SkillBarButton.Show`
+- `StatusEffectIcon.InitSkillTemplate`
+- `DelayedAbilityHUD.SetProgressPct`
+
+Implementation note:
+- Treat incomplete items as unresolved scan gates for now.
+- Do not mark selector validation as complete for those three hooks until they fire in a future log capture.
