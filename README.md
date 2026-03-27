@@ -47,6 +47,7 @@ Controls how large the floating HUD elements above each unit appear.
 
 - **UnitHUDScale** — scales infantry and soldier HUDs. `1.0` is the original size, `1.5` is 50% larger, `0.8` is 20% smaller.
 - **EntityHUDScale** — scales vehicle, emplacement, and other non-infantry HUDs separately.
+- **StructureHUDScale** — scales structure HUDs independently from entity and unit HUDs.
 - **TransformOriginX / TransformOriginY** — controls which point of the HUD stays in place as you scale it. At the defaults, HUDs grow upward from their base — increasing the scale makes the bar taller without pushing it down into the unit below. `X: 50` is horizontal centre. `Y: 100` pins the bottom edge, `Y: 0` pins the top edge, `Y: 50` pins the middle.
 - **SpentUnitHUDOpacity** — controls how transparent a unit's HUD becomes after it has used its turn. The game default is `0.5` (50% opacity, visibly dimmed). Set to `1.0` to keep spent units fully visible, or `0.0` to make them invisible. Set to `-1` to leave the game default unchanged.
 
@@ -141,6 +142,17 @@ Using any name not on this list will have no effect and will log a warning.
 | `MovementActionLabel` | Action type label when selecting movement | 14 |
 | `BleedingIconText` | Text on bleeding/damage floating icons | — |
 | `DropdownText` | Flyover text shown above units (AP changes, skill results, suppression) | 14 |
+| `SkillBarActionPointsLabel` | Skill bar action point cost label | — |
+| `SkillBarUsesLabel` | Skill bar uses label | — |
+| `SkillBarHotkeyLabel` | Skill bar hotkey label | — |
+| `SimpleSkillBarLabel` | Simple skill bar text label | — |
+| `SimpleSkillBarHotkeyLabel` | Simple skill bar hotkey label | — |
+| `SkillBarSlotWeaponNameLabel` | Weapon slot name label | — |
+| `SelectedUnitConditionLabel` | Selected unit condition label | — |
+| `SelectedUnitActionPointsLabel` | Selected unit AP label | — |
+| `TacticalUnitInfoValueLabel` | Selected unit stat value label | — |
+| `TurnOrderPanelRoundNumberLabel` | Turn order round number label | — |
+| `StatusEffectIconStackCountLabel` | Status effect stack count label | — |
 
 Each entry takes three values:
 
@@ -151,6 +163,24 @@ Each entry takes three values:
 - `Font` — font name from the list above, or `""` to leave unchanged.
 - `Size` — font size as a number, or `0` to leave unchanged.
 - `Color` — colour in `"R, G, B"` or `"R, G, B, A"` format, or `""` to leave unchanged.
+
+### Tactical UI element styles
+
+Two additional config sections control new tactical-only style surfaces:
+
+- `ObjectivesTrackerProgressBar`:
+  - `FillColor`
+  - `PreviewColor`
+  - `TrackColor`
+- `TacticalUIStyles`:
+  - `SkillBarButton` (icon/hover/selected tints + preview opacity)
+  - `BaseSkillBarItemSlot` (background/item/cross tints)
+  - `SimpleSkillBarButton` (hover tint)
+  - `TurnOrderFactionSlot` (inactive mask/icon + selected tints)
+  - `UnitsTurnBarSlot` (overlay/selected/portrait tints)
+  - `SelectedUnitPanel` (portrait/header tints)
+  - `TacticalUnitInfoStat` (icon tint)
+  - `DelayedAbilityHUD` (progress tint)
 
 ### Tile highlight colours
 
