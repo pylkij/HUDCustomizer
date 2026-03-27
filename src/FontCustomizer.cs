@@ -146,6 +146,27 @@ public static class FontCustomizer
             case "DropdownText":
                 ApplyDropdownText(element);
                 break;
+            case "SkillBarButton":
+                ApplySkillBarButton(element);
+                break;
+            case "BaseSkillBarItemSlot":
+                ApplyBaseSkillBarItemSlot(element);
+                break;
+            case "SimpleSkillBarButton":
+                ApplySimpleSkillBarButton(element);
+                break;
+            case "SelectedUnitPanel":
+                ApplySelectedUnitPanel(element);
+                break;
+            case "TacticalUnitInfoStat":
+                ApplyTacticalUnitInfoStat(element);
+                break;
+            case "TurnOrderPanel":
+                ApplyTurnOrderPanel(element);
+                break;
+            case "StatusEffectIcon":
+                ApplyStatusEffectIcon(element);
+                break;
             default:
                 // Unknown type -- apply global only as best-effort.
                 ApplyGlobalFallback(element);
@@ -231,6 +252,53 @@ public static class FontCustomizer
         // USS class font-headline means font is inherited from the global USS theme;
         // setting an inline style here takes precedence over it.
         SetFont(el.Q("Label", (string)null), Merge(cfg.Global, cfg.DropdownText), "DropdownText.Label");
+    }
+
+    private static void ApplySkillBarButton(Il2CppInterfaceElement el)
+    {
+        var cfg = HUDCustomizerPlugin.Config;
+        QueryAndSet(el, "ActionPointsLabel", Merge(cfg.Global, cfg.SkillBarActionPointsLabel), "SkillBarButton.ActionPointsLabel");
+        QueryAndSet(el, "UsesLabel", Merge(cfg.Global, cfg.SkillBarUsesLabel), "SkillBarButton.UsesLabel");
+        QueryAndSet(el, "HotkeyLabel", Merge(cfg.Global, cfg.SkillBarHotkeyLabel), "SkillBarButton.HotkeyLabel");
+    }
+
+    private static void ApplyBaseSkillBarItemSlot(Il2CppInterfaceElement el)
+    {
+        var cfg = HUDCustomizerPlugin.Config;
+        // Weapon slots expose a name label; accessory slots may not.
+        QueryAndSet(el, "Name", Merge(cfg.Global, cfg.SkillBarSlotWeaponNameLabel), "BaseSkillBarItemSlot.Name");
+    }
+
+    private static void ApplySimpleSkillBarButton(Il2CppInterfaceElement el)
+    {
+        var cfg = HUDCustomizerPlugin.Config;
+        QueryAndSet(el, "Label", Merge(cfg.Global, cfg.SimpleSkillBarLabel), "SimpleSkillBarButton.Label");
+        QueryAndSet(el, "HotkeyLabel", Merge(cfg.Global, cfg.SimpleSkillBarHotkeyLabel), "SimpleSkillBarButton.HotkeyLabel");
+    }
+
+    private static void ApplySelectedUnitPanel(Il2CppInterfaceElement el)
+    {
+        var cfg = HUDCustomizerPlugin.Config;
+        QueryAndSet(el, "ConditionLabel", Merge(cfg.Global, cfg.SelectedUnitConditionLabel), "SelectedUnitPanel.ConditionLabel");
+        QueryAndSet(el, "ActionPointsLabel", Merge(cfg.Global, cfg.SelectedUnitActionPointsLabel), "SelectedUnitPanel.ActionPointsLabel");
+    }
+
+    private static void ApplyTacticalUnitInfoStat(Il2CppInterfaceElement el)
+    {
+        var cfg = HUDCustomizerPlugin.Config;
+        QueryAndSet(el, "Value", Merge(cfg.Global, cfg.TacticalUnitInfoValueLabel), "TacticalUnitInfoStat.Value");
+    }
+
+    private static void ApplyTurnOrderPanel(Il2CppInterfaceElement el)
+    {
+        var cfg = HUDCustomizerPlugin.Config;
+        QueryAndSet(el, "RoundNumber", Merge(cfg.Global, cfg.TurnOrderPanelRoundNumberLabel), "TurnOrderPanel.RoundNumber");
+    }
+
+    private static void ApplyStatusEffectIcon(Il2CppInterfaceElement el)
+    {
+        var cfg = HUDCustomizerPlugin.Config;
+        QueryAndSet(el, "StackCount", Merge(cfg.Global, cfg.StatusEffectIconStackCountLabel), "StatusEffectIcon.StackCount");
     }
 
     // Fallback: applies Global settings to every unity-text-element in the tree.
@@ -378,6 +446,17 @@ public static class FontCustomizer
         Check("MovementActionLabel",  cfg.MovementActionLabel);
         Check("BleedingIconText",     cfg.BleedingIconText);
         Check("DropdownText",         cfg.DropdownText);
+        Check("SkillBarActionPoints", cfg.SkillBarActionPointsLabel);
+        Check("SkillBarUses",         cfg.SkillBarUsesLabel);
+        Check("SkillBarHotkey",       cfg.SkillBarHotkeyLabel);
+        Check("SimpleSkillBarLabel",  cfg.SimpleSkillBarLabel);
+        Check("SimpleSkillBarHotkey", cfg.SimpleSkillBarHotkeyLabel);
+        Check("SkillBarSlotWeapon",   cfg.SkillBarSlotWeaponNameLabel);
+        Check("SelectedUnitCondition", cfg.SelectedUnitConditionLabel);
+        Check("SelectedUnitActionPts", cfg.SelectedUnitActionPointsLabel);
+        Check("TacticalUnitInfoValue", cfg.TacticalUnitInfoValueLabel);
+        Check("TurnOrderRoundNumber",  cfg.TurnOrderPanelRoundNumberLabel);
+        Check("StatusEffectStackCount", cfg.StatusEffectIconStackCountLabel);
 
         if (active.Count == 0)
             HUDCustomizerPlugin.Log.Msg(

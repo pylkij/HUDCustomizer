@@ -618,11 +618,6 @@ public partial class HUDCustomizerPlugin
         harmony.PatchAll(typeof(Patch_DelayedAbilityHUD_SetAbility));
         harmony.PatchAll(typeof(Patch_DelayedAbilityHUD_SetProgressPct));
 
-        // Temporary scan-only tactical patches (remaining unresolved hooks).
-        harmony.PatchAll(typeof(Patch_SkillBarButton_Show_Scan));
-        harmony.PatchAll(typeof(Patch_StatusEffectIcon_InitSkillTemplate_Scan));
-        harmony.PatchAll(typeof(Patch_DelayedAbilityHUD_SetProgressPct_Scan));
-
         Debug("Harmony patches registered.");
     }
 
@@ -1185,70 +1180,4 @@ public partial class HUDCustomizerPlugin
         }
     }
 
-    // ---------------------------------------------------------------------
-    // Temporary scan-only tactical patches (remove after selector names are
-    // confirmed from runtime logs).
-    // ---------------------------------------------------------------------
-
-    [HarmonyPatch(typeof(Il2CppSkillBarButton), nameof(Il2CppSkillBarButton.Show))]
-    private static class Patch_SkillBarButton_Show_Scan
-    {
-        private static bool _scanned = false;
-        private static void Postfix(Il2CppSkillBarButton __instance)
-        {
-            try
-            {
-                if (_scanned) return;
-                _scanned = true;
-                Scans.RunElementScan(__instance.Cast<Il2CppInterfaceElement>(), "SkillBarButton.Show");
-            }
-            catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_SkillBarButton_Show_Scan: {ex}"); }
-        }
-    }
-
-    [HarmonyPatch]
-    private static class Patch_StatusEffectIcon_InitSkillTemplate_Scan
-    {
-        static MethodBase TargetMethod()
-        {
-            foreach (var m in typeof(Il2CppStatusEffectIcon).GetMethods(
-                         BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
-            {
-                if (m.Name != "Init") continue;
-                var p = m.GetParameters();
-                if (p.Length == 1 && p[0].ParameterType.Name == "SkillTemplate")
-                    return m;
-            }
-            throw new MissingMethodException("StatusEffectIcon.Init(SkillTemplate) not found.");
-        }
-
-        private static bool _scanned = false;
-        [HarmonyPostfix]
-        private static void Postfix(Il2CppStatusEffectIcon __instance)
-        {
-            try
-            {
-                if (_scanned) return;
-                _scanned = true;
-                Scans.RunElementScan(__instance.Cast<Il2CppInterfaceElement>(), "StatusEffectIcon.InitSkillTemplate");
-            }
-            catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_StatusEffectIcon_InitSkillTemplate_Scan: {ex}"); }
-        }
-    }
-
-    [HarmonyPatch(typeof(Il2CppDelayedAbilityHUD), nameof(Il2CppDelayedAbilityHUD.SetProgressPct))]
-    private static class Patch_DelayedAbilityHUD_SetProgressPct_Scan
-    {
-        private static bool _scanned = false;
-        private static void Postfix(Il2CppDelayedAbilityHUD __instance)
-        {
-            try
-            {
-                if (_scanned) return;
-                _scanned = true;
-                Scans.RunElementScan(__instance.Cast<Il2CppInterfaceElement>(), "DelayedAbilityHUD.SetProgressPct");
-            }
-            catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_DelayedAbilityHUD_SetProgressPct_Scan: {ex}"); }
-        }
-    }
 }
