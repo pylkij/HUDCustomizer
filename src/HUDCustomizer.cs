@@ -1157,6 +1157,7 @@ public partial class HUDCustomizerPlugin
                 var el = __instance.Cast<Il2CppInterfaceElement>();
                 FontCustomizer.Apply(el, "DelayedAbilityHUD");
                 Register(el, "DelayedAbilityHUD");
+                Scans.RunDelayedAbilityHUDMarkerScan(__instance, "SetAbility");
             }
             catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_DelayedAbilityHUD_SetAbility: {ex}"); }
         }
@@ -1172,6 +1173,7 @@ public partial class HUDCustomizerPlugin
                 var el = __instance.Cast<Il2CppInterfaceElement>();
                 FontCustomizer.Apply(el, "DelayedAbilityHUD");
                 Register(el, "DelayedAbilityHUD");
+                Scans.RunDelayedAbilityHUDMarkerScan(__instance, "SetProgressPct");
             }
             catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_DelayedAbilityHUD_SetProgressPct: {ex}"); }
         }

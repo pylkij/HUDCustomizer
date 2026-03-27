@@ -1292,6 +1292,7 @@ All 22 target types extracted from `Assembly-CSharp` via `dump.cs`. Findings are
 ## Step 2 Runtime Scan Status (Latest.log)
 
 Source: `C:\Program Files (x86)\Steam\steamapps\common\Menace\MelonLoader\Latest.log`
+Latest reviewed run: `2026-03-26 20:43` (America/Vancouver)
 
 Confirmed (scan fired):
 - `SkillBarButton`: `SkillIcon`, `HoverOverlay`, `SelectedOverlay`, `Cross`, `HotkeyLabel`, `UsesLabel`, `ActionPointsLabel`
@@ -1310,6 +1311,12 @@ Incomplete (scan did not fire):
 - `SkillBarButton.Show`
 - `StatusEffectIcon.InitSkillTemplate`
 - `DelayedAbilityHUD.SetProgressPct`
+
+Delayed marker validation (Step 7):
+- `DelayedAbility Marker Scan [SetAbility]` fired.
+- `UIConfig.ColorPositionMarkerDelayedAbility` logged successfully.
+- `m_WorldSpaceMarkerMaterial` was null at this phase.
+- `DelayedAbility Marker Scan [SetProgressPct]` did not fire (incomplete).
 
 Implementation note:
 - Treat incomplete items as unresolved scan gates for now.

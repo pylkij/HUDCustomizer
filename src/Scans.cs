@@ -7,6 +7,7 @@ using UnityEngine.UIElements;
 
 using Il2CppInterfaceElement = Il2CppMenace.UI.InterfaceElement;
 using Il2CppTargetAimVisualizer   = Il2CppMenace.Tactical.TargetAimVisualizer;
+using Il2CppDelayedAbilityHUD     = Il2CppMenace.UI.Tactical.DelayedAbilityHUD;
 
 // =============================================================================
 // Scans
@@ -391,6 +392,7 @@ public static class Scans
     // DELETE once spent-opacity value and element target are confirmed.
     // =========================================================================
     private static readonly Dictionary<IntPtr, float> _lastOpacity = new();
+    private static readonly HashSet<string> _delayedAbilityMarkerPhaseScanned = new();
 
     public static void RunOpacityChangeScan(Il2CppMenace.UI.Tactical.UnitHUD instance)
     {
@@ -427,6 +429,87 @@ public static class Scans
         {
             HUDCustomizerPlugin.Log.Warning($"[OpacityChangeScan] Exception: {ex.Message}");
         }
+    }
+
+    // =========================================================================
+    // DelayedAbilityHUD marker validation scan
+    // Logs the relationship between UIConfig.ColorPositionMarkerDelayedAbility and
+    // the current world-space marker material colour at key hook phases.
+    //
+    // This is validation-only scaffolding for deciding whether UIConfig alone is
+    // sufficient, or whether a direct marker material fallback patch is needed.
+    // =========================================================================
+    public static void RunDelayedAbilityHUDMarkerScan(
+        Il2CppDelayedAbilityHUD instance, string phaseLabel)
+    {
+        if (!CheckGate()) return;
+        if (instance == null) return;
+        if (_delayedAbilityMarkerPhaseScanned.Contains(phaseLabel)) return;
+        _delayedAbilityMarkerPhaseScanned.Add(phaseLabel);
+
+        HUDCustomizerPlugin.Log.Msg(
+            $"=== HUDCustomizer DelayedAbility Marker Scan [{phaseLabel}] ===");
+        try
+        {
+            var uiConfig = Il2CppMenace.UI.UIConfig.Get();
+            if (uiConfig != null)
+            {
+                var c = uiConfig.ColorPositionMarkerDelayedAbility;
+                HUDCustomizerPlugin.Log.Msg(
+                    $"[DelayedMarkerScan/{phaseLabel}] UIConfig.ColorPositionMarkerDelayedAbility={c}");
+            }
+            else
+            {
+                HUDCustomizerPlugin.Log.Msg(
+                    $"[DelayedMarkerScan/{phaseLabel}] UIConfig.Get() returned null.");
+            }
+
+            var flags = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
+            var matField = typeof(Il2CppDelayedAbilityHUD).GetField("m_WorldSpaceMarkerMaterial", flags);
+            var visibleField = typeof(Il2CppDelayedAbilityHUD).GetField("m_IsWorldSpaceMarkerVisible", flags);
+            var hasMarkerField = typeof(Il2CppDelayedAbilityHUD).GetField("m_HasWorldSpaceMarker", flags);
+
+            bool? visible = null;
+            bool? hasMarker = null;
+            try { if (visibleField != null) visible = (bool)visibleField.GetValue(instance); } catch { }
+            try { if (hasMarkerField != null) hasMarker = (bool)hasMarkerField.GetValue(instance); } catch { }
+
+            HUDCustomizerPlugin.Log.Msg(
+                $"[DelayedMarkerScan/{phaseLabel}] hasMarker={hasMarker?.ToString() ?? "unknown"} visible={visible?.ToString() ?? "unknown"}");
+
+            Material markerMat = null;
+            try { if (matField != null) markerMat = matField.GetValue(instance) as Material; } catch { }
+
+            if (markerMat == null)
+            {
+                HUDCustomizerPlugin.Log.Msg(
+                    $"[DelayedMarkerScan/{phaseLabel}] m_WorldSpaceMarkerMaterial is null.");
+            }
+            else
+            {
+                HUDCustomizerPlugin.Log.Msg(
+                    $"[DelayedMarkerScan/{phaseLabel}] markerMaterial='{markerMat.name}' shader='{markerMat.shader?.name ?? "null"}'");
+
+                string[] candidateProps = { "_Color", "_BaseColor", "_UnlitColor", "_TintColor", "_EmissionColor" };
+                foreach (var prop in candidateProps)
+                {
+                    try
+                    {
+                        if (!markerMat.HasProperty(prop)) continue;
+                        HUDCustomizerPlugin.Log.Msg(
+                            $"[DelayedMarkerScan/{phaseLabel}] {prop}={markerMat.GetColor(prop)}");
+                    }
+                    catch { }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            HUDCustomizerPlugin.Log.Warning(
+                $"[DelayedMarkerScan/{phaseLabel}] Exception: {ex.Message}");
+        }
+        HUDCustomizerPlugin.Log.Msg(
+            $"=== End DelayedAbility Marker Scan [{phaseLabel}] ===");
     }
 
     // =========================================================================
