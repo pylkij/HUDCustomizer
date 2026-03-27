@@ -571,7 +571,7 @@ public static class HUDConfig
   ""MovementCostLabel"":     { ""Font"": """", ""Size"": 0, ""Color"": """" },
   ""MovementActionLabel"":   { ""Font"": """", ""Size"": 0, ""Color"": """" },
 
-  // BleedingWorldSpaceIcon (element name confirmed by scan: "TextElement")
+  // BleedingWorldSpaceIcon (element name confirmed by scan: ""TextElement"")
   ""BleedingIconText"":      { ""Font"": """", ""Size"": 0, ""Color"": """" },
 
   // DropdownText -- flyover text shown above units on skill/status application
