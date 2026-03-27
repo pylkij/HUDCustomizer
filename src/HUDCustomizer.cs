@@ -37,6 +37,7 @@ using Il2CppTacticalUnitInfoStat  = Il2CppMenace.UI.Tactical.TacticalUnitInfoSta
 using Il2CppTurnOrderPanel        = Il2CppMenace.UI.Tactical.TurnOrderPanel;
 using Il2CppStatusEffectIcon      = Il2CppMenace.UI.Tactical.StatusEffectIcon;
 using Il2CppDelayedAbilityHUD     = Il2CppMenace.UI.Tactical.DelayedAbilityHUD;
+using Il2CppStructureHUD          = Il2CppMenace.UI.Tactical.StructureHUD;
 
 // =============================================================================
 // HUDCustomizerPlugin -- entry point, lifecycle, patches, and helpers.
@@ -105,6 +106,8 @@ public partial class HUDCustomizerPlugin : IModpackPlugin
                         break;
                     case "EntityHUD":
                         UnitCustomizer.Apply(el, Config.EntityHUDScale); break;
+                    case "StructureHUD":
+                        UnitCustomizer.Apply(el, Config.StructureHUDScale); break;
                     case "DropdownText":
                         // No bar or badge -- FontCustomizer handles everything.
                         break;
@@ -596,6 +599,7 @@ public partial class HUDCustomizerPlugin
         harmony.PatchAll(typeof(Patch_TargetAimVisualizer_UpdateAim));
         harmony.PatchAll(typeof(LOSResizePatch));
         harmony.PatchAll(typeof(Patch_DropdownText_Init));
+        harmony.PatchAll(typeof(Patch_StructureHUD_Init));
         // Permanent tactical routing patches (Step 5).
         harmony.PatchAll(typeof(Patch_SkillBarButton_Init));
         harmony.PatchAll(typeof(Patch_SkillBarButton_Show));
@@ -907,6 +911,25 @@ public partial class HUDCustomizerPlugin
                 if (!_scanned) { _scanned = true; Scans.RunElementScan(el, "DropdownText"); }
             }
             catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_DropdownText_Init: {ex}"); }
+        }
+    }
+
+    // StructureHUD -- Init(Structure) is the dedicated setup hook for structure HUDs.
+    // This enables independent StructureHUDScale while preserving existing EntityHUD
+    // styling patterns (bars/fonts) for structures.
+    [HarmonyPatch(typeof(Il2CppStructureHUD), nameof(Il2CppStructureHUD.Init))]
+    private static class Patch_StructureHUD_Init
+    {
+        private static void Postfix(Il2CppStructureHUD __instance)
+        {
+            try
+            {
+                var el = __instance.Cast<Il2CppInterfaceElement>();
+                UnitCustomizer.Apply(el, Config.StructureHUDScale);
+                FontCustomizer.Apply(el, "StructureHUD");
+                Register(el, "StructureHUD");
+            }
+            catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_StructureHUD_Init: {ex}"); }
         }
     }
 
