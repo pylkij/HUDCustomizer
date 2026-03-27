@@ -3,18 +3,22 @@
 A mod for **MENACE** that lets you change the appearance of the tactical HUD — colours, fonts, and scaling — without editing game files. All settings are stored in a single text file that you can edit in Notepad, and changes can be applied in-game without restarting.
 
 <p align="center">
-   <img src="images/TileHighlightOverview.png" alt ="Overview" width="30%">
-   <img src="images/ObjectiveTileHighlight.png" alt ="Objective zone" width="30%">
-   <img src="images/LoSVisualizer.png" alt ="Line of Sight Visualizer" width="30%">
+   <img src="images/TileHighlightOverview.png" alt ="Overview" width="50%">
+   <img src="images/ObjectiveTileHighlight.png" alt ="Objective zone" width="50%">
 </p>
 <p align="center">
-   <img src="images/MovementVisualizer.png" alt ="Movement Visualizer" width="30%">
-   <img src="images/SpentHUDOpacity.png" alt ="Unit End Turn HUD" width="30%">
-   <img src="images/AimVisualizer.png" alt ="Aim Visualizer" width="30%">
+   <img src="images/LoSVisualizer.png" alt ="Line of Sight Visualizer" width="50%">
+   <img src="images/MovementVisualizer.png" alt ="Movement Visualizer" width="50%">
 </p>
 <p align="center">
-   <img src="images/FlyoverTextDemo.gif" alt ="Flyover Demo" width="30%">
-   <img src="images/OutOfRangeVisualizerDemo.gif" alt ="OutOfRangeVisualizer Demo" width="30%">
+   <img src="images/SpentHUDOpacity.png" alt ="Unit End Turn HUD" width="50%">
+   <img src="images/AimVisualizer.png" alt ="Aim Visualizer" width="50%">
+</p>
+<p align="center">
+   <img src="images/FlyoverTextDemo.gif" alt ="Flyover Demo">
+</p>
+<p align="center">
+   <img src="images/OutOfRangeVisualizerDemo.gif" alt ="OutOfRangeVisualizer Demo">
 </p>
 
 ---
