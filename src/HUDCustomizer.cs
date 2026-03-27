@@ -27,6 +27,16 @@ using Il2CppMovementVisualizer    = Il2CppMenace.Tactical.MovementVisualizer;
 using Il2CppTargetAimVisualizer   = Il2CppMenace.Tactical.TargetAimVisualizer;
 using Il2CppLineOfSightVisualizer = Il2CppMenace.Tactical.LineOfSightVisualizer;
 using Il2CppDropdownText          = Il2CppMenace.UI.Tactical.DropdownText;
+using Il2CppSkillBarButton        = Il2CppMenace.UI.Tactical.SkillBarButton;
+using Il2CppBaseSkillBarItemSlot  = Il2CppMenace.UI.Tactical.BaseSkillBarItemSlot;
+using Il2CppSimpleSkillBarButton  = Il2CppMenace.UI.Tactical.SimpleSkillBarButton;
+using Il2CppTurnOrderFactionSlot  = Il2CppMenace.UI.Tactical.TurnOrderFactionSlot;
+using Il2CppUnitsTurnBarSlot      = Il2CppMenace.UI.Tactical.UnitsTurnBarSlot;
+using Il2CppSelectedUnitPanel     = Il2CppMenace.UI.Tactical.SelectedUnitPanel;
+using Il2CppTacticalUnitInfoStat  = Il2CppMenace.UI.Tactical.TacticalUnitInfoStat;
+using Il2CppTurnOrderPanel        = Il2CppMenace.UI.Tactical.TurnOrderPanel;
+using Il2CppStatusEffectIcon      = Il2CppMenace.UI.Tactical.StatusEffectIcon;
+using Il2CppDelayedAbilityHUD     = Il2CppMenace.UI.Tactical.DelayedAbilityHUD;
 
 // =============================================================================
 // HUDCustomizerPlugin -- entry point, lifecycle, patches, and helpers.
@@ -586,6 +596,23 @@ public partial class HUDCustomizerPlugin
         harmony.PatchAll(typeof(Patch_TargetAimVisualizer_UpdateAim));
         harmony.PatchAll(typeof(LOSResizePatch));
         harmony.PatchAll(typeof(Patch_DropdownText_Init));
+
+        // Temporary scan-only tactical patches (Step 2).
+        harmony.PatchAll(typeof(Patch_SkillBarButton_Init_Scan));
+        harmony.PatchAll(typeof(Patch_SkillBarButton_Show_Scan));
+        harmony.PatchAll(typeof(Patch_BaseSkillBarItemSlot_Init_Scan));
+        harmony.PatchAll(typeof(Patch_SimpleSkillBarButton_SetText_Scan));
+        harmony.PatchAll(typeof(Patch_TurnOrderFactionSlot_Init_Scan));
+        harmony.PatchAll(typeof(Patch_UnitsTurnBarSlot_Init_Scan));
+        harmony.PatchAll(typeof(Patch_UnitsTurnBarSlot_SetActor_Scan));
+        harmony.PatchAll(typeof(Patch_SelectedUnitPanel_SetActor_Scan));
+        harmony.PatchAll(typeof(Patch_TacticalUnitInfoStat_Init_Scan));
+        harmony.PatchAll(typeof(Patch_TurnOrderPanel_UpdateFactions_Scan));
+        harmony.PatchAll(typeof(Patch_StatusEffectIcon_InitSkillTemplate_Scan));
+        harmony.PatchAll(typeof(Patch_StatusEffectIcon_InitSkill_Scan));
+        harmony.PatchAll(typeof(Patch_DelayedAbilityHUD_SetAbility_Scan));
+        harmony.PatchAll(typeof(Patch_DelayedAbilityHUD_SetProgressPct_Scan));
+
         Debug("Harmony patches registered.");
     }
 
@@ -865,6 +892,263 @@ public partial class HUDCustomizerPlugin
                 if (!_scanned) { _scanned = true; Scans.RunElementScan(el, "DropdownText"); }
             }
             catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_DropdownText_Init: {ex}"); }
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Temporary scan-only tactical patches (remove after selector names are
+    // confirmed from runtime logs).
+    // ---------------------------------------------------------------------
+
+    [HarmonyPatch(typeof(Il2CppSkillBarButton), nameof(Il2CppSkillBarButton.Init))]
+    private static class Patch_SkillBarButton_Init_Scan
+    {
+        private static bool _scanned = false;
+        private static void Postfix(Il2CppSkillBarButton __instance)
+        {
+            try
+            {
+                if (_scanned) return;
+                _scanned = true;
+                Scans.RunElementScan(__instance.Cast<Il2CppInterfaceElement>(), "SkillBarButton");
+            }
+            catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_SkillBarButton_Init_Scan: {ex}"); }
+        }
+    }
+
+    [HarmonyPatch(typeof(Il2CppSkillBarButton), nameof(Il2CppSkillBarButton.Show))]
+    private static class Patch_SkillBarButton_Show_Scan
+    {
+        private static bool _scanned = false;
+        private static void Postfix(Il2CppSkillBarButton __instance)
+        {
+            try
+            {
+                if (_scanned) return;
+                _scanned = true;
+                Scans.RunElementScan(__instance.Cast<Il2CppInterfaceElement>(), "SkillBarButton.Show");
+            }
+            catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_SkillBarButton_Show_Scan: {ex}"); }
+        }
+    }
+
+    [HarmonyPatch(typeof(Il2CppBaseSkillBarItemSlot), nameof(Il2CppBaseSkillBarItemSlot.Init))]
+    private static class Patch_BaseSkillBarItemSlot_Init_Scan
+    {
+        private static bool _scanned = false;
+        private static void Postfix(Il2CppBaseSkillBarItemSlot __instance)
+        {
+            try
+            {
+                if (_scanned) return;
+                _scanned = true;
+                Scans.RunElementScan(__instance.Cast<Il2CppInterfaceElement>(), "BaseSkillBarItemSlot");
+            }
+            catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_BaseSkillBarItemSlot_Init_Scan: {ex}"); }
+        }
+    }
+
+    [HarmonyPatch(typeof(Il2CppSimpleSkillBarButton), nameof(Il2CppSimpleSkillBarButton.SetText))]
+    private static class Patch_SimpleSkillBarButton_SetText_Scan
+    {
+        private static bool _scanned = false;
+        private static void Postfix(Il2CppSimpleSkillBarButton __instance)
+        {
+            try
+            {
+                if (_scanned) return;
+                _scanned = true;
+                Scans.RunElementScan(__instance.Cast<Il2CppInterfaceElement>(), "SimpleSkillBarButton");
+            }
+            catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_SimpleSkillBarButton_SetText_Scan: {ex}"); }
+        }
+    }
+
+    [HarmonyPatch(typeof(Il2CppTurnOrderFactionSlot), nameof(Il2CppTurnOrderFactionSlot.Init))]
+    private static class Patch_TurnOrderFactionSlot_Init_Scan
+    {
+        private static bool _scanned = false;
+        private static void Postfix(Il2CppTurnOrderFactionSlot __instance)
+        {
+            try
+            {
+                if (_scanned) return;
+                _scanned = true;
+                Scans.RunElementScan(__instance.Cast<Il2CppInterfaceElement>(), "TurnOrderFactionSlot");
+            }
+            catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_TurnOrderFactionSlot_Init_Scan: {ex}"); }
+        }
+    }
+
+    [HarmonyPatch(typeof(Il2CppUnitsTurnBarSlot), nameof(Il2CppUnitsTurnBarSlot.Init))]
+    private static class Patch_UnitsTurnBarSlot_Init_Scan
+    {
+        private static bool _scanned = false;
+        private static void Postfix(Il2CppUnitsTurnBarSlot __instance)
+        {
+            try
+            {
+                if (_scanned) return;
+                _scanned = true;
+                Scans.RunElementScan(__instance.Cast<Il2CppInterfaceElement>(), "UnitsTurnBarSlot");
+            }
+            catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_UnitsTurnBarSlot_Init_Scan: {ex}"); }
+        }
+    }
+
+    [HarmonyPatch(typeof(Il2CppUnitsTurnBarSlot), nameof(Il2CppUnitsTurnBarSlot.SetActor))]
+    private static class Patch_UnitsTurnBarSlot_SetActor_Scan
+    {
+        private static bool _scanned = false;
+        private static void Postfix(Il2CppUnitsTurnBarSlot __instance)
+        {
+            try
+            {
+                if (_scanned) return;
+                _scanned = true;
+                Scans.RunElementScan(__instance.Cast<Il2CppInterfaceElement>(), "UnitsTurnBarSlot.SetActor");
+            }
+            catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_UnitsTurnBarSlot_SetActor_Scan: {ex}"); }
+        }
+    }
+
+    [HarmonyPatch(typeof(Il2CppSelectedUnitPanel), nameof(Il2CppSelectedUnitPanel.SetActor))]
+    private static class Patch_SelectedUnitPanel_SetActor_Scan
+    {
+        private static bool _scanned = false;
+        private static void Postfix(Il2CppSelectedUnitPanel __instance)
+        {
+            try
+            {
+                if (_scanned) return;
+                _scanned = true;
+                Scans.RunElementScan(__instance.Cast<Il2CppInterfaceElement>(), "SelectedUnitPanel");
+            }
+            catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_SelectedUnitPanel_SetActor_Scan: {ex}"); }
+        }
+    }
+
+    [HarmonyPatch(typeof(Il2CppTacticalUnitInfoStat), nameof(Il2CppTacticalUnitInfoStat.Init))]
+    private static class Patch_TacticalUnitInfoStat_Init_Scan
+    {
+        private static bool _scanned = false;
+        private static void Postfix(Il2CppTacticalUnitInfoStat __instance)
+        {
+            try
+            {
+                if (_scanned) return;
+                _scanned = true;
+                Scans.RunElementScan(__instance.Cast<Il2CppInterfaceElement>(), "TacticalUnitInfoStat");
+            }
+            catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_TacticalUnitInfoStat_Init_Scan: {ex}"); }
+        }
+    }
+
+    [HarmonyPatch(typeof(Il2CppTurnOrderPanel), nameof(Il2CppTurnOrderPanel.UpdateFactions))]
+    private static class Patch_TurnOrderPanel_UpdateFactions_Scan
+    {
+        private static bool _scanned = false;
+        private static void Postfix(Il2CppTurnOrderPanel __instance)
+        {
+            try
+            {
+                if (_scanned) return;
+                _scanned = true;
+                Scans.RunElementScan(__instance.Cast<Il2CppInterfaceElement>(), "TurnOrderPanel");
+            }
+            catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_TurnOrderPanel_UpdateFactions_Scan: {ex}"); }
+        }
+    }
+
+    [HarmonyPatch]
+    private static class Patch_StatusEffectIcon_InitSkillTemplate_Scan
+    {
+        static MethodBase TargetMethod()
+        {
+            foreach (var m in typeof(Il2CppStatusEffectIcon).GetMethods(
+                         BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+            {
+                if (m.Name != "Init") continue;
+                var p = m.GetParameters();
+                if (p.Length == 1 && p[0].ParameterType.Name == "SkillTemplate")
+                    return m;
+            }
+            throw new MissingMethodException("StatusEffectIcon.Init(SkillTemplate) not found.");
+        }
+
+        private static bool _scanned = false;
+        [HarmonyPostfix]
+        private static void Postfix(Il2CppStatusEffectIcon __instance)
+        {
+            try
+            {
+                if (_scanned) return;
+                _scanned = true;
+                Scans.RunElementScan(__instance.Cast<Il2CppInterfaceElement>(), "StatusEffectIcon.InitSkillTemplate");
+            }
+            catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_StatusEffectIcon_InitSkillTemplate_Scan: {ex}"); }
+        }
+    }
+
+    [HarmonyPatch]
+    private static class Patch_StatusEffectIcon_InitSkill_Scan
+    {
+        static MethodBase TargetMethod()
+        {
+            foreach (var m in typeof(Il2CppStatusEffectIcon).GetMethods(
+                         BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+            {
+                if (m.Name != "Init") continue;
+                var p = m.GetParameters();
+                if (p.Length == 1 && p[0].ParameterType.Name == "Skill")
+                    return m;
+            }
+            throw new MissingMethodException("StatusEffectIcon.Init(Skill) not found.");
+        }
+
+        private static bool _scanned = false;
+        [HarmonyPostfix]
+        private static void Postfix(Il2CppStatusEffectIcon __instance)
+        {
+            try
+            {
+                if (_scanned) return;
+                _scanned = true;
+                Scans.RunElementScan(__instance.Cast<Il2CppInterfaceElement>(), "StatusEffectIcon.InitSkill");
+            }
+            catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_StatusEffectIcon_InitSkill_Scan: {ex}"); }
+        }
+    }
+
+    [HarmonyPatch(typeof(Il2CppDelayedAbilityHUD), nameof(Il2CppDelayedAbilityHUD.SetAbility))]
+    private static class Patch_DelayedAbilityHUD_SetAbility_Scan
+    {
+        private static bool _scanned = false;
+        private static void Postfix(Il2CppDelayedAbilityHUD __instance)
+        {
+            try
+            {
+                if (_scanned) return;
+                _scanned = true;
+                Scans.RunElementScan(__instance.Cast<Il2CppInterfaceElement>(), "DelayedAbilityHUD");
+            }
+            catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_DelayedAbilityHUD_SetAbility_Scan: {ex}"); }
+        }
+    }
+
+    [HarmonyPatch(typeof(Il2CppDelayedAbilityHUD), nameof(Il2CppDelayedAbilityHUD.SetProgressPct))]
+    private static class Patch_DelayedAbilityHUD_SetProgressPct_Scan
+    {
+        private static bool _scanned = false;
+        private static void Postfix(Il2CppDelayedAbilityHUD __instance)
+        {
+            try
+            {
+                if (_scanned) return;
+                _scanned = true;
+                Scans.RunElementScan(__instance.Cast<Il2CppInterfaceElement>(), "DelayedAbilityHUD.SetProgressPct");
+            }
+            catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_DelayedAbilityHUD_SetProgressPct_Scan: {ex}"); }
         }
     }
 }
