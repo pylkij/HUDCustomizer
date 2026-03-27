@@ -596,6 +596,21 @@ public partial class HUDCustomizerPlugin
         harmony.PatchAll(typeof(Patch_TargetAimVisualizer_UpdateAim));
         harmony.PatchAll(typeof(LOSResizePatch));
         harmony.PatchAll(typeof(Patch_DropdownText_Init));
+        // Permanent tactical routing patches (Step 5).
+        harmony.PatchAll(typeof(Patch_SkillBarButton_Init));
+        harmony.PatchAll(typeof(Patch_SkillBarButton_Show));
+        harmony.PatchAll(typeof(Patch_BaseSkillBarItemSlot_Init));
+        harmony.PatchAll(typeof(Patch_SimpleSkillBarButton_SetText));
+        harmony.PatchAll(typeof(Patch_TurnOrderFactionSlot_Init));
+        harmony.PatchAll(typeof(Patch_UnitsTurnBarSlot_Init));
+        harmony.PatchAll(typeof(Patch_UnitsTurnBarSlot_SetActor));
+        harmony.PatchAll(typeof(Patch_SelectedUnitPanel_SetActor));
+        harmony.PatchAll(typeof(Patch_TacticalUnitInfoStat_Init));
+        harmony.PatchAll(typeof(Patch_TurnOrderPanel_UpdateFactions));
+        harmony.PatchAll(typeof(Patch_StatusEffectIcon_InitSkillTemplate));
+        harmony.PatchAll(typeof(Patch_StatusEffectIcon_InitSkill));
+        harmony.PatchAll(typeof(Patch_DelayedAbilityHUD_SetAbility));
+        harmony.PatchAll(typeof(Patch_DelayedAbilityHUD_SetProgressPct));
 
         // Temporary scan-only tactical patches (Step 2).
         harmony.PatchAll(typeof(Patch_SkillBarButton_Init_Scan));
@@ -892,6 +907,250 @@ public partial class HUDCustomizerPlugin
                 if (!_scanned) { _scanned = true; Scans.RunElementScan(el, "DropdownText"); }
             }
             catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_DropdownText_Init: {ex}"); }
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Permanent tactical routing patches (Step 5).
+    // These hooks route new tactical element types into the live registry and
+    // FontCustomizer pipeline so hot-reload can re-apply consistently.
+    // ---------------------------------------------------------------------
+
+    [HarmonyPatch(typeof(Il2CppSkillBarButton), nameof(Il2CppSkillBarButton.Init))]
+    private static class Patch_SkillBarButton_Init
+    {
+        private static void Postfix(Il2CppSkillBarButton __instance)
+        {
+            try
+            {
+                var el = __instance.Cast<Il2CppInterfaceElement>();
+                FontCustomizer.Apply(el, "SkillBarButton");
+                Register(el, "SkillBarButton");
+            }
+            catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_SkillBarButton_Init: {ex}"); }
+        }
+    }
+
+    [HarmonyPatch(typeof(Il2CppSkillBarButton), nameof(Il2CppSkillBarButton.Show))]
+    private static class Patch_SkillBarButton_Show
+    {
+        private static void Postfix(Il2CppSkillBarButton __instance)
+        {
+            try
+            {
+                var el = __instance.Cast<Il2CppInterfaceElement>();
+                FontCustomizer.Apply(el, "SkillBarButton");
+                Register(el, "SkillBarButton");
+            }
+            catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_SkillBarButton_Show: {ex}"); }
+        }
+    }
+
+    [HarmonyPatch(typeof(Il2CppBaseSkillBarItemSlot), nameof(Il2CppBaseSkillBarItemSlot.Init))]
+    private static class Patch_BaseSkillBarItemSlot_Init
+    {
+        private static void Postfix(Il2CppBaseSkillBarItemSlot __instance)
+        {
+            try
+            {
+                var el = __instance.Cast<Il2CppInterfaceElement>();
+                FontCustomizer.Apply(el, "BaseSkillBarItemSlot");
+                Register(el, "BaseSkillBarItemSlot");
+            }
+            catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_BaseSkillBarItemSlot_Init: {ex}"); }
+        }
+    }
+
+    [HarmonyPatch(typeof(Il2CppSimpleSkillBarButton), nameof(Il2CppSimpleSkillBarButton.SetText))]
+    private static class Patch_SimpleSkillBarButton_SetText
+    {
+        private static void Postfix(Il2CppSimpleSkillBarButton __instance)
+        {
+            try
+            {
+                var el = __instance.Cast<Il2CppInterfaceElement>();
+                FontCustomizer.Apply(el, "SimpleSkillBarButton");
+                Register(el, "SimpleSkillBarButton");
+            }
+            catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_SimpleSkillBarButton_SetText: {ex}"); }
+        }
+    }
+
+    [HarmonyPatch(typeof(Il2CppTurnOrderFactionSlot), nameof(Il2CppTurnOrderFactionSlot.Init))]
+    private static class Patch_TurnOrderFactionSlot_Init
+    {
+        private static void Postfix(Il2CppTurnOrderFactionSlot __instance)
+        {
+            try
+            {
+                var el = __instance.Cast<Il2CppInterfaceElement>();
+                FontCustomizer.Apply(el, "TurnOrderFactionSlot");
+                Register(el, "TurnOrderFactionSlot");
+            }
+            catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_TurnOrderFactionSlot_Init: {ex}"); }
+        }
+    }
+
+    [HarmonyPatch(typeof(Il2CppUnitsTurnBarSlot), nameof(Il2CppUnitsTurnBarSlot.Init))]
+    private static class Patch_UnitsTurnBarSlot_Init
+    {
+        private static void Postfix(Il2CppUnitsTurnBarSlot __instance)
+        {
+            try
+            {
+                var el = __instance.Cast<Il2CppInterfaceElement>();
+                FontCustomizer.Apply(el, "UnitsTurnBarSlot");
+                Register(el, "UnitsTurnBarSlot");
+            }
+            catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_UnitsTurnBarSlot_Init: {ex}"); }
+        }
+    }
+
+    [HarmonyPatch(typeof(Il2CppUnitsTurnBarSlot), nameof(Il2CppUnitsTurnBarSlot.SetActor))]
+    private static class Patch_UnitsTurnBarSlot_SetActor
+    {
+        private static void Postfix(Il2CppUnitsTurnBarSlot __instance)
+        {
+            try
+            {
+                var el = __instance.Cast<Il2CppInterfaceElement>();
+                FontCustomizer.Apply(el, "UnitsTurnBarSlot");
+                Register(el, "UnitsTurnBarSlot");
+            }
+            catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_UnitsTurnBarSlot_SetActor: {ex}"); }
+        }
+    }
+
+    [HarmonyPatch(typeof(Il2CppSelectedUnitPanel), nameof(Il2CppSelectedUnitPanel.SetActor))]
+    private static class Patch_SelectedUnitPanel_SetActor
+    {
+        private static void Postfix(Il2CppSelectedUnitPanel __instance)
+        {
+            try
+            {
+                var el = __instance.Cast<Il2CppInterfaceElement>();
+                FontCustomizer.Apply(el, "SelectedUnitPanel");
+                Register(el, "SelectedUnitPanel");
+            }
+            catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_SelectedUnitPanel_SetActor: {ex}"); }
+        }
+    }
+
+    [HarmonyPatch(typeof(Il2CppTacticalUnitInfoStat), nameof(Il2CppTacticalUnitInfoStat.Init))]
+    private static class Patch_TacticalUnitInfoStat_Init
+    {
+        private static void Postfix(Il2CppTacticalUnitInfoStat __instance)
+        {
+            try
+            {
+                var el = __instance.Cast<Il2CppInterfaceElement>();
+                FontCustomizer.Apply(el, "TacticalUnitInfoStat");
+                Register(el, "TacticalUnitInfoStat");
+            }
+            catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_TacticalUnitInfoStat_Init: {ex}"); }
+        }
+    }
+
+    [HarmonyPatch(typeof(Il2CppTurnOrderPanel), nameof(Il2CppTurnOrderPanel.UpdateFactions))]
+    private static class Patch_TurnOrderPanel_UpdateFactions
+    {
+        private static void Postfix(Il2CppTurnOrderPanel __instance)
+        {
+            try
+            {
+                var el = __instance.Cast<Il2CppInterfaceElement>();
+                FontCustomizer.Apply(el, "TurnOrderPanel");
+                Register(el, "TurnOrderPanel");
+            }
+            catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_TurnOrderPanel_UpdateFactions: {ex}"); }
+        }
+    }
+
+    [HarmonyPatch]
+    private static class Patch_StatusEffectIcon_InitSkillTemplate
+    {
+        static MethodBase TargetMethod()
+        {
+            foreach (var m in typeof(Il2CppStatusEffectIcon).GetMethods(
+                         BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+            {
+                if (m.Name != "Init") continue;
+                var p = m.GetParameters();
+                if (p.Length == 1 && p[0].ParameterType.Name == "SkillTemplate")
+                    return m;
+            }
+            throw new MissingMethodException("StatusEffectIcon.Init(SkillTemplate) not found.");
+        }
+
+        [HarmonyPostfix]
+        private static void Postfix(Il2CppStatusEffectIcon __instance)
+        {
+            try
+            {
+                var el = __instance.Cast<Il2CppInterfaceElement>();
+                FontCustomizer.Apply(el, "StatusEffectIcon");
+                Register(el, "StatusEffectIcon");
+            }
+            catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_StatusEffectIcon_InitSkillTemplate: {ex}"); }
+        }
+    }
+
+    [HarmonyPatch]
+    private static class Patch_StatusEffectIcon_InitSkill
+    {
+        static MethodBase TargetMethod()
+        {
+            foreach (var m in typeof(Il2CppStatusEffectIcon).GetMethods(
+                         BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+            {
+                if (m.Name != "Init") continue;
+                var p = m.GetParameters();
+                if (p.Length == 1 && p[0].ParameterType.Name == "Skill")
+                    return m;
+            }
+            throw new MissingMethodException("StatusEffectIcon.Init(Skill) not found.");
+        }
+
+        [HarmonyPostfix]
+        private static void Postfix(Il2CppStatusEffectIcon __instance)
+        {
+            try
+            {
+                var el = __instance.Cast<Il2CppInterfaceElement>();
+                FontCustomizer.Apply(el, "StatusEffectIcon");
+                Register(el, "StatusEffectIcon");
+            }
+            catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_StatusEffectIcon_InitSkill: {ex}"); }
+        }
+    }
+
+    [HarmonyPatch(typeof(Il2CppDelayedAbilityHUD), nameof(Il2CppDelayedAbilityHUD.SetAbility))]
+    private static class Patch_DelayedAbilityHUD_SetAbility
+    {
+        private static void Postfix(Il2CppDelayedAbilityHUD __instance)
+        {
+            try
+            {
+                var el = __instance.Cast<Il2CppInterfaceElement>();
+                FontCustomizer.Apply(el, "DelayedAbilityHUD");
+                Register(el, "DelayedAbilityHUD");
+            }
+            catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_DelayedAbilityHUD_SetAbility: {ex}"); }
+        }
+    }
+
+    [HarmonyPatch(typeof(Il2CppDelayedAbilityHUD), nameof(Il2CppDelayedAbilityHUD.SetProgressPct))]
+    private static class Patch_DelayedAbilityHUD_SetProgressPct
+    {
+        private static void Postfix(Il2CppDelayedAbilityHUD __instance)
+        {
+            try
+            {
+                var el = __instance.Cast<Il2CppInterfaceElement>();
+                FontCustomizer.Apply(el, "DelayedAbilityHUD");
+                Register(el, "DelayedAbilityHUD");
+            }
+            catch (Exception ex) { Log.Error($"[HUDCustomizer] Patch_DelayedAbilityHUD_SetProgressPct: {ex}"); }
         }
     }
 
