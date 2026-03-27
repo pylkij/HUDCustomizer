@@ -16,6 +16,7 @@
       "src/TileCustomizer.cs",
       "src/USSCustomizer.cs",
       "src/VisualizerCustomizer.cs",
+      "src/TacticalElementCustomizer.cs",
       "src/CombatFlyoverPlugin.cs",
       "src/CombatFlyoverCustomizer.cs",
       "src/Scans.cs",
