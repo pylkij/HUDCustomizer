@@ -275,7 +275,7 @@ public partial class HUDCustomizerPlugin : IModpackPlugin
     // OnInitialize before LoadConfig() -- if the mod directory config is missing
     // but a UserData backup exists, it is copied back so LoadConfig() finds it.
     // =========================================================================
-    private static readonly string UserDataDir  = Path.Combine("UserData", "HUDCustomizer");
+    private static readonly string UserDataDir  = Path.Combine("UserData", "TacticalHUDCustomizer");
     private static readonly string UserDataPath = Path.Combine(UserDataDir, "HUDCustomizer.json");
 
     private static void BackupConfig()

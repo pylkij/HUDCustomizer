@@ -536,7 +536,7 @@ public static class HUDConfig
     // Consumed by HUDCustomizerPlugin.LoadConfig() and by the patches that
     // need to locate the config file.
     // =========================================================================
-    public static readonly string ConfigDir  = Path.Combine("Mods", "HUDCustomizer");
+    public static readonly string ConfigDir  = Path.Combine("Mods", "TacticalHUDCustomizer");
     public static readonly string ConfigPath = Path.Combine(ConfigDir, "HUDCustomizer.json");
 
     public static readonly JsonSerializerOptions JsonOpts = new JsonSerializerOptions
